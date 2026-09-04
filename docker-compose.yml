@@ -1,0 +1,54 @@
+version: "3.8"
+
+services:
+  # 1. The Database Service
+  db:
+    image: postgres:15-alpine
+    container_name: finance_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_secure_password
+      POSTGRES_DB: finance_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # This ensures data isn't lost if the container stops
+
+  # 2. The FastAPI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: backend.Dockerfile
+    container_name: finance_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    env_file:
+      - .env
+    environment:
+      # Overrides local DB url to point to the 'db' container on Docker's internal network
+      - DATABASE_URL=postgresql://postgres:your_secure_password@db:5432/finance_db
+
+  # 3. The Streamlit Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+    container_name: finance_frontend
+    restart: always
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+    env_file:
+      - .env
+    environment:
+      # Forces Streamlit to talk to the backend via the internal Docker network
+      - API_URL=http://backend:8000/api/v1
+
+# Define persistent storage for the database
+volumes:
+  postgres_data:
