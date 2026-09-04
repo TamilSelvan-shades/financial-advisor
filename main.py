@@ -27,24 +27,50 @@ from database import SessionLocal, engine, get_db
 import models
 import schemas
 
-# Create all missing database tables
+# 1. Create all missing database tables
 models.Base.metadata.create_all(bind=engine)
 
-# Universal column migration compatible with both SQLite and PostgreSQL
+# 2. Universal schema migrations for both PostgreSQL (Render) and SQLite (Local)
 try:
     inspector = inspect(engine)
-    if "expenses" in inspector.get_table_names():
-        existing_cols = [c["name"] for c in inspector.get_columns("expenses")]
-        with engine.connect() as conn:
-            if "account" not in existing_cols:
-                conn.execute(
-                    text(
-                        "ALTER TABLE expenses ADD COLUMN account VARCHAR(100) DEFAULT 'ICICI Savings Account';"
-                    )
-                )
-            if "remarks" not in existing_cols:
-                conn.execute(text("ALTER TABLE expenses ADD COLUMN remarks TEXT;"))
-            conn.commit()
+    existing_tables = inspector.get_table_names()
+
+    migrations = {
+        "loans": [
+            ("interest_rate", "FLOAT DEFAULT 8.5"),
+            ("tenure_years", "FLOAT DEFAULT 20.0"),
+            ("extra_prepayment", "FLOAT DEFAULT 0.0"),
+        ],
+        "expenses": [
+            ("account", "VARCHAR(100) DEFAULT 'ICICI Savings Account'"),
+            ("remarks", "TEXT"),
+        ],
+        "incomes": [
+            ("account", "VARCHAR(100) DEFAULT 'ICICI Savings Account'"),
+            ("description", "VARCHAR(255) DEFAULT ''"),
+            ("remarks", "TEXT"),
+        ],
+        "bills": [
+            ("status", "VARCHAR(50) DEFAULT 'Pending'"),
+        ],
+        "credit_scores": [
+            ("rating", "VARCHAR(50) DEFAULT 'Excellent'"),
+        ],
+    }
+
+    with engine.connect() as conn:
+        for tbl, cols in migrations.items():
+            if tbl in existing_tables:
+                existing_cols = [c["name"] for c in inspector.get_columns(tbl)]
+                for col_name, col_type in cols:
+                    if col_name not in existing_cols:
+                        conn.execute(
+                            text(
+                                f"ALTER TABLE {tbl} ADD COLUMN {col_name} {col_type};"
+                            )
+                        )
+                        print(f"Auto-migration: Added {col_name} to {tbl}")
+        conn.commit()
 except Exception as e:
     print(f"Migration note: {e}")
 
@@ -253,7 +279,7 @@ def async_process_telegram_message(user_text: str):
                 )
             )
 
-            # Auto-create budget if missing (₹5,000 default limit)
+            # Auto-create budget if missing
             existing_budget = (
                 db.query(models.Budget)
                 .filter(
@@ -270,7 +296,7 @@ def async_process_telegram_message(user_text: str):
 
             reply = f"✅ *Logged Expense via Webhook:*\n• {desc}: ₹{amt:,.2f} ({category_name})\n• Account: {acc}"
 
-            # Real-time check: if 90% reached or exceeded, append reminder immediately
+            # Real-time 90% budget check
             warning = check_budget_threshold_alert(db, category_name)
             if warning:
                 reply += f"\n\n{warning}"
@@ -397,7 +423,6 @@ def create_single_expense(
     new_expense = models.Expense(**exp.model_dump())
     db.add(new_expense)
 
-    # Auto-create budget if missing
     existing_budget = (
         db.query(models.Budget)
         .filter(func.lower(models.Budget.category) == exp.category.lower())
@@ -408,7 +433,6 @@ def create_single_expense(
 
     db.commit()
 
-    # Trigger Telegram reminder if this manual entry hits 90%+ limit
     warning = check_budget_threshold_alert(db, exp.category)
     if warning:
         background_tasks.add_task(send_telegram_alert, warning)
