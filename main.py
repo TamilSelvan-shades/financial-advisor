@@ -126,14 +126,30 @@ def async_process_telegram_message(user_text: str):
         data = json.loads(cleaned)
 
         if data.get("type") == "log_expense":
+            category_name = data["category"].strip()
+
+            # 1. Log the expense
             db.add(models.Expense(
                 date=today,
                 description=data["description"].capitalize(),
                 amount=float(data["amount"]),
-                category=data["category"]
+                category=category_name
             ))
+
+            # 2. Check if a budget already exists for this category
+            existing_budget = db.query(models.Budget).filter(
+                func.lower(models.Budget.category) == category_name.lower()
+            ).first()
+
+            # 3. If no budget exists, automatically create a default one ($100 limit)
+            if not existing_budget:
+                db.add(models.Budget(
+                    category=category_name,
+                    monthly_limit=100.00
+                ))
+
             db.commit()
-            reply = f"✅ *Logged Expense via Webhook:*\n• {data['description'].capitalize()}: ${float(data['amount']):,.2f} ({data['category']})"
+            reply = f"✅ *Logged Expense via Webhook:*\n• {data['description'].capitalize()}: ${float(data['amount']):,.2f} ({category_name})"
         else:
             reply = data.get("reply", "Understood.")
     except Exception as e:
@@ -167,7 +183,13 @@ app = FastAPI(
 @app.get("/api/v1/dashboard/", tags=["Dashboard"], dependencies=[Depends(verify_api_key)])
 def get_dashboard_data(db: Session = Depends(get_db)):
     def serialize(query_result):
-        return [row.__dict__ for row in query_result]
+        # Remove SQLAlchemy's internal state object so it doesn't crash the JSON conversion
+        results = []
+        for row in query_result:
+            row_dict = row.__dict__.copy()
+            row_dict.pop("_sa_instance_state", None)
+            results.append(row_dict)
+        return results
 
     return {
         "expenses": serialize(db.query(models.Expense).all()),
