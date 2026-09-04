@@ -18,6 +18,9 @@ import models
 import schemas
 from database import engine, get_db, SessionLocal
 
+# Add this exact line to create the tables:
+models.Base.metadata.create_all(bind=engine)
+
 load_dotenv()
 
 # --- Configuration & Credentials ---
