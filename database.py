@@ -1,22 +1,22 @@
 import os
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-from dotenv import load_dotenv
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Load connection string from .env
-load_dotenv()
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./finance.db")
 
-# Create the SQLAlchemy Engine
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# Render provides 'postgres://', but SQLAlchemy requires 'postgresql://'
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# Create a configured "Session" class
+connect_args = (
+    {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+)
+
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Base class for our ORM models
 Base = declarative_base()
 
-# Dependency generator to get a database session
+
 def get_db():
     db = SessionLocal()
     try:

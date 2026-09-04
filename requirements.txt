@@ -8,3 +8,5 @@ pandas
 apscheduler
 python-dotenv
 requests
+plotly
+openpyxl
