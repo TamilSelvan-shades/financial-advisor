@@ -14,6 +14,7 @@ from google.genai import types
 from dotenv import load_dotenv
 from apscheduler.schedulers.background import BackgroundScheduler
 
+from currency_utils import format_amount
 import models
 import schemas
 from database import engine, get_db, SessionLocal
@@ -70,7 +71,7 @@ def scheduled_financial_health_check():
         days_away = b.due_day - current_day
         if 0 <= days_away <= 7 and b.status != "Paid":
             label = "TODAY" if days_away == 0 else f"in {days_away} days"
-            upcoming_bills.append(f"• *{b.name}*: ${b.amount:,.2f} ({label})")
+            upcoming_bills.append(f"• *{b.name}*: {format_amount(b.amount)} ({label})")
 
     # 2. Check Budget Thresholds
     budgets = db.query(models.Budget).all()
@@ -78,7 +79,7 @@ def scheduled_financial_health_check():
     for b in budgets:
         spent = db.query(func.sum(models.Expense.amount)).filter(models.Expense.category == b.category).scalar() or 0.0
         if spent > b.monthly_limit:
-            budget_warnings.append(f"• ⚠️ *{b.category}*: ${spent:,.2f} spent of ${b.monthly_limit:,.2f} limit!")
+            budget_warnings.append(f"• ⚠️ *{b.category}*: {format_amount(spent)} spent of {format_amount(b.monthly_limit)} limit!")
         elif b.monthly_limit > 0 and (spent / b.monthly_limit) >= 0.80:
             budget_warnings.append(f"• 🟡 *{b.category}*: At {(spent / b.monthly_limit) * 100:.0f}% of budget")
 
@@ -91,7 +92,7 @@ def scheduled_financial_health_check():
     lines = [
         f"🔔 *Automated Daily Briefing* — {today.strftime('%b %d, %Y')}",
         "━━━━━━━━━━━━━━━━━━━",
-        f"💰 *Net Worth:* ${net_worth:,.2f}\n",
+        f"💰 *Net Worth:* {format_amount(net_worth)}\n",
         "📅 *Upcoming Bills (Next 7 Days):*"
     ]
     lines.extend(upcoming_bills if upcoming_bills else ["✅ No pending bills due soon."])
@@ -109,7 +110,7 @@ def async_process_telegram_message(user_text: str):
     today = datetime.date.today().strftime("%Y-%m-%d")
     total_assets = db.query(func.sum(models.Investment.current_value)).scalar() or 0.0
     total_debt = db.query(func.sum(models.Loan.principal)).scalar() or 0.0
-    context = f"Net Worth: ${total_assets - total_debt:,.2f} (Assets: ${total_assets:,.2f}, Debt: ${total_debt:,.2f})"
+    context = f"Net Worth: {format_amount(total_assets - total_debt)} (Assets: {format_amount(total_assets)}, Debt: {format_amount(total_debt)})"
 
     prompt = f"""
     You are an AI financial advisor on Telegram. Today is {today}. Context: {context}
@@ -141,7 +142,7 @@ def async_process_telegram_message(user_text: str):
                 func.lower(models.Budget.category) == category_name.lower()
             ).first()
 
-            # 3. If no budget exists, automatically create a default one ($100 limit)
+            # 3. If no budget exists, automatically create a default limit of 100.00 in the configured currency
             if not existing_budget:
                 db.add(models.Budget(
                     category=category_name,
@@ -149,7 +150,7 @@ def async_process_telegram_message(user_text: str):
                 ))
 
             db.commit()
-            reply = f"✅ *Logged Expense via Webhook:*\n• {data['description'].capitalize()}: ${float(data['amount']):,.2f} ({category_name})"
+            reply = f"✅ *Logged Expense via Webhook:*\n• {data['description'].capitalize()}: {format_amount(float(data['amount']))} ({category_name})"
         else:
             reply = data.get("reply", "Understood.")
     except Exception as e:
@@ -164,7 +165,7 @@ scheduler = BackgroundScheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    scheduler.add_job(scheduled_financial_health_check, "cron", hour=9, minute=0, id="daily_health_check")
+    scheduler.add_job(scheduled_financial_health_check, "cron", hour=8, minute=0, id="daily_health_check")
     scheduler.start()
     print("🚀 Background scheduler started: Daily alerts registered for 09:00 AM.")
     yield
@@ -256,14 +257,14 @@ def get_net_worth_tool() -> str:
     total_assets = db.query(func.sum(models.Investment.current_value)).scalar() or 0.0
     total_debt = db.query(func.sum(models.Loan.principal)).scalar() or 0.0
     db.close()
-    return f"Assets: ${total_assets:,.2f}, Debt: ${total_debt:,.2f}, Net Worth: ${total_assets - total_debt:,.2f}"
+    return f"Assets: {format_amount(total_assets)}, Debt: {format_amount(total_debt)}, Net Worth: {format_amount(total_assets - total_debt)}"
 
 def get_upcoming_bills_tool() -> str:
     db = SessionLocal()
     bills = db.query(models.Bill).all()
     db.close()
     if not bills: return "No bills found."
-    return "\n".join([f"{b.name}: ${b.amount} due on day {b.due_day}" for b in bills])
+    return "\n".join([f"{b.name}: {format_amount(b.amount)} due on day {b.due_day}" for b in bills])
 
 @app.post("/api/v1/chat/", tags=["AI Agent"], dependencies=[Depends(verify_api_key)])
 def chat_with_agent(req: schemas.ChatRequest):

@@ -4,6 +4,7 @@ import requests
 from dotenv import load_dotenv
 
 # Enterprise Database Imports
+from currency_utils import format_amount
 from database import SessionLocal
 import models
 from sqlalchemy import func
@@ -36,7 +37,7 @@ def generate_financial_alert():
         days_away = b.due_day - current_day
         if 0 <= days_away <= 7 and b.status != "Paid":
             due_label = "TODAY" if days_away == 0 else f"in {days_away} days"
-            upcoming_bills.append(f"• *{b.name}*: ${b.amount:,.2f} ({due_label})")
+            upcoming_bills.append(f"• *{b.name}*: {format_amount(b.amount)} ({due_label})")
 
     # 2. Check Over-Budget via ORM
     budgets = db.query(models.Budget).all()
@@ -44,7 +45,7 @@ def generate_financial_alert():
     for b in budgets:
         spent = db.query(func.sum(models.Expense.amount)).filter(models.Expense.category == b.category).scalar() or 0.0
         if spent > b.monthly_limit:
-            budget_warnings.append(f"• ⚠️ *{b.category}*: ${spent:,.2f} spent of ${b.monthly_limit:,.2f} budget!")
+            budget_warnings.append(f"• ⚠️ *{b.category}*: {format_amount(spent)} spent of {format_amount(b.monthly_limit)} budget!")
         elif b.monthly_limit > 0 and (spent / b.monthly_limit) >= 0.80:
             budget_warnings.append(f"• 🟡 *{b.category}*: At {(spent/b.monthly_limit)*100:.0f}% of budget")
 
@@ -57,7 +58,7 @@ def generate_financial_alert():
     lines = [
         f"🔔 *Financial Agent Alert* — {today.strftime('%b %d, %Y')}",
         "━━━━━━━━━━━━━━━━━━━",
-        f"💰 *Net Worth:* ${net_worth:,.2f}\n"
+        f"💰 *Net Worth:* {format_amount(net_worth)}\n"
     ]
 
     lines.append("📅 *Upcoming Bills:*")

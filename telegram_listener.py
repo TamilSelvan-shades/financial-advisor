@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from google import genai
 
 # Enterprise Database Imports
+from currency_utils import format_amount
 from database import SessionLocal
 import models
 from sqlalchemy import func
@@ -25,7 +26,7 @@ def get_financial_context() -> str:
     total_assets = db.query(func.sum(models.Investment.current_value)).scalar() or 0.0
     total_debt = db.query(func.sum(models.Loan.principal)).scalar() or 0.0
     db.close()
-    return f"- Net Worth: ${total_assets - total_debt:,.2f} (Assets: ${total_assets:,.2f}, Debt: ${total_debt:,.2f})"
+    return f"- Net Worth: {format_amount(total_assets - total_debt)} (Assets: {format_amount(total_assets)}, Debt: {format_amount(total_debt)})"
 
 def process_with_gemini(user_text: str) -> str:
     today = datetime.date.today().strftime("%Y-%m-%d")
@@ -48,7 +49,7 @@ def process_with_gemini(user_text: str) -> str:
             db.add(models.Expense(date=today, description=data["description"].capitalize(), amount=float(data["amount"]), category=data["category"]))
             db.commit()
             db.close()
-            return f"✅ *Logged Expense:*\n• {data['description'].capitalize()}: ${float(data['amount']):,.2f} ({data['category']})"
+            return f"✅ *Logged Expense:*\n• {data['description'].capitalize()}: {format_amount(float(data['amount']))} ({data['category']})"
         else:
             return data.get("reply", "I couldn't process that request.")
     except Exception as e:

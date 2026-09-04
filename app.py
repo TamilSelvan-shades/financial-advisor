@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
+from currency_utils import currency_label, format_amount, parse_amount
 from loan_math import calculate_emi, generate_amortization_schedule
 from agent_core import batch_categorize_transactions
 
@@ -66,9 +67,9 @@ savings_rate = ((monthly_income - total_monthly_spend) / monthly_income * 100) i
 latest_score = int(df_credit.iloc[-1]["score"]) if not df_credit.empty and "score" in df_credit.columns else 750
 
 kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
-kpi1.metric("Current Net Worth", f"${net_worth:,.2f}", delta=f"${net_worth:,.2f}")
-kpi2.metric("Total Assets", f"${total_assets:,.2f}")
-kpi3.metric("Total Debt", f"${total_debt:,.2f}")
+kpi1.metric("Current Net Worth", format_amount(net_worth), delta=format_amount(net_worth))
+kpi2.metric("Total Assets", format_amount(total_assets))
+kpi3.metric("Total Debt", format_amount(total_debt))
 kpi4.metric("Credit Score", f"{latest_score}", delta="Excellent" if latest_score >= 750 else "Good")
 kpi5.metric("Savings Rate", f"{savings_rate:.1f}%", delta="Healthy" if savings_rate >= 20 else "Low")
 
@@ -128,7 +129,7 @@ with tab_exp:
                     clean_rows, descriptions_to_tag = [], []
                     for _, r in raw_df.iterrows():
                         try:
-                            clean_amt = abs(float(str(r[amt_col]).replace("$", "").replace(",", "").strip()))
+                            clean_amt = abs(parse_amount(r[amt_col]))
                             if clean_amt > 0:
                                 descriptions_to_tag.append(str(r[desc_col]))
                                 clean_rows.append((str(r[date_col]), str(r[desc_col]), clean_amt))
@@ -163,7 +164,7 @@ with tab_exp:
             for _, row in merged_budget.iterrows():
                 cat, limit, spent = row["category"], row["monthly_limit"], row.get("amount", 0.0)
                 pct = (spent / limit) if limit > 0 else 0.0
-                st.write(f"**{cat}**: ${spent:,.2f} of ${limit:,.2f} ({pct*100:.0f}%)")
+                st.write(f"**{cat}**: {format_amount(spent)} of {format_amount(limit)} ({pct*100:.0f}%)")
                 st.progress(min(pct, 1.0))
         with col_b2:
             st.write("### Expenses Breakdown")
@@ -172,7 +173,7 @@ with tab_exp:
     with st.expander("⚙️ Adjust Monthly Category Budgets"):
         with st.form("set_budget_form", clear_on_submit=True):
             b_cat = st.selectbox("Category", ["Groceries", "Utilities", "Dining", "Subscriptions", "Investment", "EMI/Loan", "Miscellaneous"])
-            b_limit = st.number_input("Monthly Limit ($)", min_value=10.0, value=200.0, step=25.0)
+            b_limit = st.number_input(currency_label("Monthly Limit"), min_value=10.0, value=200.0, step=25.0)
             
             if st.form_submit_button("Save Budget via API"):
                 res = requests.post(f"{API_URL}/budgets/", json={"category": b_cat, "monthly_limit": b_limit}, headers=HEADERS)
@@ -189,15 +190,15 @@ with tab_loan:
     st.subheader("Loan Amortization & Early Repayment Optimizer")
     default_principal = float(df_loans.iloc[0]["principal"]) if not df_loans.empty else 250000.0
     c1, c2, c3, c4 = st.columns(4)
-    with c1: loan_amount = st.number_input("Principal ($)", value=default_principal, step=5000.0)
+    with c1: loan_amount = st.number_input(currency_label("Principal"), value=default_principal, step=5000.0)
     with c2: interest_rate = st.number_input("Rate (%)", value=7.5, step=0.1)
     with c3: tenure_years = st.slider("Tenure (Yrs)", 1, 30, 20)
-    with c4: extra_payment = st.number_input("Extra Prepayment ($)", value=200.0, step=50.0)
+    with c4: extra_payment = st.number_input(currency_label("Extra Prepayment"), value=200.0, step=50.0)
 
     _, base_summary = generate_amortization_schedule(loan_amount, interest_rate, tenure_years*12, 0.0)
     df_prepay, prepay_summary = generate_amortization_schedule(loan_amount, interest_rate, tenure_years*12, extra_payment)
 
-    st.metric("Interest Saved", f"${base_summary['total_interest'] - prepay_summary['total_interest']:,.2f}")
+    st.metric("Interest Saved", format_amount(base_summary['total_interest'] - prepay_summary['total_interest']))
     st.line_chart(df_prepay.set_index("Month")["Remaining Balance"])
 
 # ------------------ TAB 4: SAVINGS & INVESTMENTS ------------------
@@ -211,8 +212,8 @@ with tab_inv:
         with st.form("add_inv_form", clear_on_submit=True):
             f_name = st.text_input("Asset Name")
             f_type = st.selectbox("Category", ["Mutual Funds", "Stocks", "Fixed Deposit", "Savings/Cash", "Crypto"])
-            f_invested = st.number_input("Invested ($)", step=100.0)
-            f_current = st.number_input("Current Value ($)", step=100.0)
+            f_invested = st.number_input(currency_label("Invested"), step=100.0)
+            f_current = st.number_input(currency_label("Current Value"), step=100.0)
             f_institution = st.text_input("Platform")
             
             if st.form_submit_button("Save Asset via API") and f_name:
@@ -234,13 +235,13 @@ with tab_goals:
             pct = min(1.0, float(goal["current_amount"]) / float(goal["target_amount"])) if float(goal["target_amount"]) > 0 else 1.0
             st.write(f"### {goal['name']}")
             st.progress(pct)
-            st.caption(f"Saved: ${goal['current_amount']:,.2f} / Target: ${goal['target_amount']:,.2f}")
+            st.caption(f"Saved: {format_amount(goal['current_amount'])} / Target: {format_amount(goal['target_amount'])}")
     
     with st.expander("➕ Define a New Goal"):
         with st.form("add_goal_form", clear_on_submit=True):
             g_name = st.text_input("Goal Name")
-            g_target = st.number_input("Target ($)", step=500.0, value=5000.0)
-            g_current = st.number_input("Saved ($)", step=100.0)
+            g_target = st.number_input(currency_label("Target"), step=500.0, value=5000.0)
+            g_current = st.number_input(currency_label("Saved"), step=100.0)
             g_date = st.date_input("Deadline")
             
             if st.form_submit_button("Save Goal via API") and g_name:
@@ -271,7 +272,7 @@ with tab_bills:
     with st.expander("➕ Add Bill"):
         with st.form("add_bill_form", clear_on_submit=True):
             b_name = st.text_input("Service Name")
-            b_amount = st.number_input("Amount ($)", step=5.0)
+            b_amount = st.number_input(currency_label("Amount"), step=5.0)
             b_day = st.number_input("Due Day", min_value=1, max_value=31)
             b_cat = st.selectbox("Category", ["Utilities", "Subscriptions", "Insurance"])
             
@@ -308,7 +309,7 @@ with tab_health:
                     else:
                         st.error(f"Error saving score: {res.text}")
     with c2:
-        new_income = st.number_input("Monthly Income ($)", value=monthly_income, step=250.0)
+        new_income = st.number_input(currency_label("Monthly Income"), value=monthly_income, step=250.0)
         if new_income != monthly_income:
             res = requests.post(f"{API_URL}/profile/", json={"key": "monthly_income", "value": new_income}, headers=HEADERS)
             if res.status_code == 200:
