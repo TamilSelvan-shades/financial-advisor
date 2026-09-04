@@ -22,11 +22,12 @@ _CURRENCY_SYMBOLS = {
 }
 
 _AMOUNT_TOKEN_PATTERN = re.compile(r"(?i)\b(?:usd|inr|rs\.?|rupees?|dollars?)\b|[$₹,]")
+_DEFAULT_CURRENCY = "INR"
 
 
 def get_currency_code() -> str:
-    raw_currency = os.getenv("APP_CURRENCY", "USD").strip().upper()
-    return _CURRENCY_ALIASES.get(raw_currency, "USD")
+    raw_currency = os.getenv("APP_CURRENCY", _DEFAULT_CURRENCY).strip().upper()
+    return _CURRENCY_ALIASES.get(raw_currency, _DEFAULT_CURRENCY)
 
 
 def get_currency_symbol() -> str:
