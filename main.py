@@ -27,52 +27,99 @@ from database import SessionLocal, engine, get_db
 import models
 import schemas
 
-# 1. Create all missing database tables
+# 1. Create missing tables
 models.Base.metadata.create_all(bind=engine)
 
-# 2. Universal schema migrations for both PostgreSQL (Render) and SQLite (Local)
+# 2. Universal Schema Migration: Auto-patch all legacy tables with missing columns
+MIGRATION_COLUMNS = {
+    "expenses": [
+        ("date", "VARCHAR(50)"),
+        ("category", "VARCHAR(100)"),
+        ("amount", "FLOAT DEFAULT 0.0"),
+        ("description", "VARCHAR(255) DEFAULT ''"),
+        ("account", "VARCHAR(100) DEFAULT 'ICICI Savings Account'"),
+        ("remarks", "TEXT DEFAULT ''"),
+    ],
+    "incomes": [
+        ("date", "VARCHAR(50)"),
+        ("category", "VARCHAR(100)"),
+        ("amount", "FLOAT DEFAULT 0.0"),
+        ("account", "VARCHAR(100) DEFAULT 'ICICI Savings Account'"),
+        ("description", "VARCHAR(255) DEFAULT ''"),
+        ("remarks", "TEXT DEFAULT ''"),
+    ],
+    "accounts": [
+        ("name", "VARCHAR(100)"),
+        ("account_type", "VARCHAR(50) DEFAULT 'Bank Account'"),
+        ("initial_balance", "FLOAT DEFAULT 0.0"),
+    ],
+    "balance_adjustments": [
+        ("date", "VARCHAR(50)"),
+        ("account", "VARCHAR(100)"),
+        ("amount", "FLOAT DEFAULT 0.0"),
+        ("reason", "VARCHAR(255) DEFAULT ''"),
+    ],
+    "loans": [
+        ("name", "VARCHAR(100)"),
+        ("principal", "FLOAT DEFAULT 0.0"),
+        ("interest_rate", "FLOAT DEFAULT 8.5"),
+        ("tenure_years", "FLOAT DEFAULT 20.0"),
+        ("extra_prepayment", "FLOAT DEFAULT 0.0"),
+    ],
+    "investments": [
+        ("name", "VARCHAR(100)"),
+        ("category", "VARCHAR(100) DEFAULT 'Mutual Funds'"),
+        ("current_value", "FLOAT DEFAULT 0.0"),
+    ],
+    "budgets": [
+        ("category", "VARCHAR(100)"),
+        ("monthly_limit", "FLOAT DEFAULT 5000.0"),
+    ],
+    "goals": [
+        ("name", "VARCHAR(100)"),
+        ("target_amount", "FLOAT DEFAULT 0.0"),
+        ("current_amount", "FLOAT DEFAULT 0.0"),
+        ("target_date", "VARCHAR(50) DEFAULT ''"),
+    ],
+    "bills": [
+        ("name", "VARCHAR(100)"),
+        ("amount", "FLOAT DEFAULT 0.0"),
+        ("due_day", "INTEGER DEFAULT 1"),
+        ("status", "VARCHAR(50) DEFAULT 'Pending'"),
+    ],
+    "credit_scores": [
+        ("score", "INTEGER DEFAULT 750"),
+        ("date", "VARCHAR(50) DEFAULT ''"),
+        ("rating", "VARCHAR(50) DEFAULT 'Excellent'"),
+    ],
+    "profile": [
+        ("key", "VARCHAR(100)"),
+        ("value", "TEXT DEFAULT ''"),
+    ],
+}
+
 try:
     inspector = inspect(engine)
     existing_tables = inspector.get_table_names()
 
-    migrations = {
-        "loans": [
-            ("interest_rate", "FLOAT DEFAULT 8.5"),
-            ("tenure_years", "FLOAT DEFAULT 20.0"),
-            ("extra_prepayment", "FLOAT DEFAULT 0.0"),
-        ],
-        "expenses": [
-            ("account", "VARCHAR(100) DEFAULT 'ICICI Savings Account'"),
-            ("remarks", "TEXT"),
-        ],
-        "incomes": [
-            ("account", "VARCHAR(100) DEFAULT 'ICICI Savings Account'"),
-            ("description", "VARCHAR(255) DEFAULT ''"),
-            ("remarks", "TEXT"),
-        ],
-        "bills": [
-            ("status", "VARCHAR(50) DEFAULT 'Pending'"),
-        ],
-        "credit_scores": [
-            ("rating", "VARCHAR(50) DEFAULT 'Excellent'"),
-        ],
-    }
-
-    with engine.connect() as conn:
-        for tbl, cols in migrations.items():
-            if tbl in existing_tables:
-                existing_cols = [c["name"] for c in inspector.get_columns(tbl)]
-                for col_name, col_type in cols:
-                    if col_name not in existing_cols:
-                        conn.execute(
-                            text(
-                                f"ALTER TABLE {tbl} ADD COLUMN {col_name} {col_type};"
+    for tbl, cols in MIGRATION_COLUMNS.items():
+        if tbl in existing_tables:
+            existing_cols = {c["name"] for c in inspector.get_columns(tbl)}
+            for col_name, col_type in cols:
+                if col_name not in existing_cols:
+                    try:
+                        with engine.connect() as conn:
+                            conn.execute(
+                                text(
+                                    f'ALTER TABLE "{tbl}" ADD COLUMN "{col_name}" {col_type};'
+                                )
                             )
-                        )
-                        print(f"Auto-migration: Added {col_name} to {tbl}")
-        conn.commit()
+                            conn.commit()
+                            print(f"Auto-migrated: Added {col_name} to {tbl}")
+                    except Exception as col_err:
+                        print(f"Migration note ({tbl}.{col_name}): {col_err}")
 except Exception as e:
-    print(f"Migration note: {e}")
+    print(f"Schema inspection warning: {e}")
 
 load_dotenv()
 
@@ -279,7 +326,6 @@ def async_process_telegram_message(user_text: str):
                 )
             )
 
-            # Auto-create budget if missing
             existing_budget = (
                 db.query(models.Budget)
                 .filter(
@@ -296,7 +342,6 @@ def async_process_telegram_message(user_text: str):
 
             reply = f"✅ *Logged Expense via Webhook:*\n• {desc}: ₹{amt:,.2f} ({category_name})\n• Account: {acc}"
 
-            # Real-time 90% budget check
             warning = check_budget_threshold_alert(db, category_name)
             if warning:
                 reply += f"\n\n{warning}"
