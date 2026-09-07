@@ -169,7 +169,6 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
 
 
 def verify_api_key(api_key: str = Security(api_key_header)):
-    """Verifies that incoming requests supply a valid secret API key."""
     if api_key != API_SECRET_KEY:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -182,7 +181,6 @@ def verify_api_key(api_key: str = Security(api_key_header)):
 
 
 def send_telegram_alert(message_text: str):
-    """Dispatches a Markdown message to Telegram asynchronously."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -200,7 +198,6 @@ def send_telegram_alert(message_text: str):
 def check_budget_threshold_alert(
     db: Session, category_name: str
 ) -> Optional[str]:
-    """Checks if current month's spending for a category has reached 90% or more of its limit."""
     budget = (
         db.query(models.Budget)
         .filter(func.lower(models.Budget.category) == category_name.lower())
@@ -238,13 +235,12 @@ def check_budget_threshold_alert(
 
 
 def scheduled_financial_health_check():
-    """Automated job: scans database for upcoming bills and 90%+ budget overspends at 8:00 AM IST."""
     db = SessionLocal()
     today = datetime.date.today()
     current_day = today.day
     current_month_prefix = today.strftime("%Y-%m")
 
-    # 1. Check Upcoming Bills
+    # 1. Upcoming Bills
     all_bills = db.query(models.Bill).all()
     upcoming_bills = []
     for b in all_bills:
@@ -253,7 +249,7 @@ def scheduled_financial_health_check():
             label = "TODAY" if days_away == 0 else f"in {days_away} days"
             upcoming_bills.append(f"• *{b.name}*: ₹{b.amount:,.2f} ({label})")
 
-    # 2. Check Budget Thresholds (Current Month Only)
+    # 2. Budget Thresholds
     budgets = db.query(models.Budget).all()
     budget_warnings = []
     for b in budgets:
@@ -277,7 +273,6 @@ def scheduled_financial_health_check():
                     f"• ⚠️ *{b.category}*: At {pct:.1f}% of budget (₹{spent:,.2f} / ₹{b.monthly_limit:,.2f})"
                 )
 
-    # 3. Overall Net Worth
     total_assets = (
         db.query(func.sum(models.Investment.current_value)).scalar() or 0.0
     )
@@ -305,7 +300,6 @@ def scheduled_financial_health_check():
 
 
 def async_process_telegram_message(user_text: str):
-    """Processes incoming Telegram messages via Gemini for both expenses and income."""
     if not ai_client:
         return
 
@@ -410,7 +404,6 @@ scheduler = BackgroundScheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Scheduled daily alert for 8:00 AM IST
     scheduler.add_job(
         scheduled_financial_health_check,
         "cron",
@@ -419,10 +412,8 @@ async def lifespan(app: FastAPI):
         id="daily_health_check",
     )
     scheduler.start()
-    print("🚀 Background scheduler started: Daily alerts registered for 08:00 AM.")
     yield
     scheduler.shutdown()
-    print("🛑 Background scheduler shut down.")
 
 
 app = FastAPI(
@@ -502,7 +493,30 @@ def delete_loan(loan_id: int, db: Session = Depends(get_db)):
     raise HTTPException(status_code=404, detail="Loan not found.")
 
 
-# --- Secured Endpoints: Data Ingestion (POST) ---
+# --- Secured Endpoints: Data Ingestion & Updates (POST / PUT) ---
+
+@app.put(
+    "/api/v1/loans/{loan_id}", tags=["Loans"], dependencies=[Depends(verify_api_key)]
+)
+def update_loan(loan_id: int, payload: schemas.LoanCreate, db: Session = Depends(get_db)):
+    loan = db.query(models.Loan).filter(models.Loan.id == loan_id).first()
+    if loan:
+        loan.name = payload.name
+        loan.principal = payload.principal
+        loan.interest_rate = payload.interest_rate
+        loan.tenure_years = payload.tenure_years
+        loan.extra_prepayment = payload.extra_prepayment
+        db.commit()
+        return {"message": "Loan updated successfully."}
+    raise HTTPException(status_code=404, detail="Loan not found.")
+
+
+@app.post("/api/v1/loans/", tags=["Loans"], dependencies=[Depends(verify_api_key)])
+def create_loan(loan: schemas.LoanCreate, db: Session = Depends(get_db)):
+    db.add(models.Loan(**loan.model_dump()))
+    db.commit()
+    return {"message": "Loan added successfully."}
+
 
 @app.post(
     "/api/v1/expenses/bulk",
@@ -631,12 +645,6 @@ def update_budget(budget: schemas.BudgetCreate, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Budget updated."}
 
-@app.post("/api/v1/loans/", tags=["Loans"], dependencies=[Depends(verify_api_key)])
-def create_loan(loan: schemas.LoanCreate, db: Session = Depends(get_db)):
-    db.add(models.Loan(**loan.model_dump()))
-    db.commit()
-    return {"message": "Loan added successfully."}
-
 
 @app.post(
     "/api/v1/investments/",
@@ -764,7 +772,6 @@ def chat_with_agent(req: schemas.ChatRequest):
     dependencies=[Depends(verify_api_key)],
 )
 def trigger_alert_now(background_tasks: BackgroundTasks):
-    """Allows authenticated manual triggers of the daily briefing in the background."""
     background_tasks.add_task(scheduled_financial_health_check)
     return {"message": "Health check scheduled in background."}
 
@@ -777,7 +784,6 @@ async def telegram_webhook(
     background_tasks: BackgroundTasks,
     x_telegram_bot_api_secret_token: Optional[str] = Header(None),
 ):
-    """Secured webhook receiver validating Telegram's native secret token header."""
     if x_telegram_bot_api_secret_token != TELEGRAM_WEBHOOK_SECRET:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -790,7 +796,6 @@ async def telegram_webhook(
         sender_id = str(message.get("from", {}).get("id", ""))
         text = message.get("text", "")
 
-        # Only process messages from your specific chat ID
         if sender_id == str(TELEGRAM_CHAT_ID) and text:
             background_tasks.add_task(async_process_telegram_message, text)
     except Exception as e:

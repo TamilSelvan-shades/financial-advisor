@@ -1,6 +1,7 @@
 import datetime
 import io
 import json
+import math
 import os
 import pandas as pd
 import plotly.express as px
@@ -829,7 +830,7 @@ with tab_exp:
         if not df_ledger.empty:
             df_ledger = df_ledger.sort_values(by="Date", ascending=False)
             
-            # --- START: DELETE UI ---
+            # --- DELETE UI ---
             st.markdown("###### 🗑️ Manage / Delete Transactions")
             del_col1, del_col2 = st.columns([3, 1])
             with del_col1:
@@ -853,7 +854,6 @@ with tab_exp:
                     else:
                         st.error(f"Failed to delete: {res.text}")
             st.write("---")
-            # --- END: DELETE UI ---
 
             filter_acc = st.selectbox(
                 "Filter by Account",
@@ -1003,7 +1003,7 @@ with tab_exp:
                 st.info(f"📑 Excel file detected: **{uploaded_file.name}**")
                 replace_existing = st.checkbox(
                     "Replace existing data with spreadsheet records",
-                    value=False, # Safe default prevents accidental wipes
+                    value=False,
                 )
 
                 if st.button("🚀 Process & Ingest File"):
@@ -1012,17 +1012,15 @@ with tab_exp:
                             file_bytes = io.BytesIO(uploaded_file.read())
                             xl = pd.ExcelFile(file_bytes)
 
-                            # --- NEW LOGIC: DETECT ICICI BANK STATEMENT ---
+                            # --- ICICI BANK STATEMENT AUTO-PARSER ---
                             if "OpTransactionHistory" in xl.sheet_names:
                                 st.success("🏦 Recognized ICICI Bank Statement format. Auto-categorizing transactions...")
-                                # ICICI headers start at row 13 (skiprows=12)
                                 df_bank = pd.read_excel(xl, sheet_name="OpTransactionHistory", skiprows=12)
                                 df_bank = df_bank.dropna(subset=['Transaction Date', 'Withdrawal Amount(INR)', 'Deposit Amount(INR)'], how='all')
                                 
                                 bulk_exp = []
                                 bulk_inc = []
                                 
-                                # Smart categorization rules
                                 def auto_categorize(remarks: str, is_expense: bool) -> str:
                                     r = str(remarks).upper()
                                     if not is_expense:
@@ -1096,11 +1094,10 @@ with tab_exp:
                                 st.cache_data.clear()
                                 st.rerun()
 
-                            # --- ORIGINAL LOGIC: CUSTOM TEMPLATE ---
+                            # --- CUSTOM TEMPLATE ---
                             else:
                                 st.info("Processing as standard application template...")
                                 
-                                # 1. Accounts
                                 if "Setup" in xl.sheet_names:
                                     df_setup = pd.read_excel(xl, sheet_name="Setup", header=None)
                                     for r in range(6, 25):
@@ -1112,7 +1109,6 @@ with tab_exp:
                                                 json={"name": str(val).strip(), "account_type": "Bank Account", "initial_balance": 0.0},
                                             )
 
-                                # 2. Incomes
                                 bulk_inc = []
                                 if "Income" in xl.sheet_names:
                                     df_i = pd.read_excel(xl, sheet_name="Income", skiprows=5).dropna(subset=["DATE", "AMOUNT"])
@@ -1128,7 +1124,6 @@ with tab_exp:
                                     if bulk_inc:
                                         requests.post(f"{API_URL}/api/v1/incomes/bulk", headers=HEADERS, json={"incomes": bulk_inc, "replace_all": replace_existing})
 
-                                # 3. Expenses
                                 bulk_exp = []
                                 if "Expenses" in xl.sheet_names:
                                     df_e = pd.read_excel(xl, sheet_name="Expenses", skiprows=5).dropna(subset=["DATE", "AMOUNT"])
@@ -1161,59 +1156,80 @@ with tab_exp:
                         for _, r in df_csv.iterrows():
                             records.append(
                                 {
-                                    "date": str(
-                                        r.get(
-                                            "date",
-                                            datetime.date.today().strftime(
-                                                "%Y-%m-%d"
-                                            ),
-                                        )
-                                    ),
-                                    "description": str(
-                                        r.get("description", "Imported Expense")
-                                    ),
+                                    "date": str(r.get("date", datetime.date.today().strftime("%Y-%m-%d"))),
+                                    "description": str(r.get("description", "Imported Expense")),
                                     "amount": float(r.get("amount", 0.0)),
-                                    "category": str(
-                                        r.get("category", "General")
-                                    ),
-                                    "account": str(
-                                        r.get(
-                                            "account", "ICICI Savings Account"
-                                        )
-                                    ),
+                                    "category": str(r.get("category", "General")),
+                                    "account": str(r.get("account", "ICICI Savings Account")),
                                 }
                             )
-                        requests.post(
-                            f"{API_URL}/api/v1/expenses/bulk",
-                            headers=HEADERS,
-                            json={"expenses": records, "replace_all": False},
-                        )
-                        st.success(
-                            f"Uploaded {len(records)} transactions from CSV!"
-                        )
+                        requests.post(f"{API_URL}/api/v1/expenses/bulk", headers=HEADERS, json={"expenses": records, "replace_all": False})
+                        st.success(f"Uploaded {len(records)} transactions from CSV!")
                         st.cache_data.clear()
                         st.rerun()
                 except Exception as ex:
                     st.error(f"Error parsing CSV: {ex}")
 
 # ==========================================
-# TAB 3: Loans & Prepayments
+# TAB 3: Loans & Prepayments (Mathematical Reverse-Engineering)
 # ==========================================
 with tab_loans:
     st.subheader("Loans, EMI & Early Prepayment Optimizer")
 
+    # Mathematical calculator for trajectory mapping
+    def calculate_amortization(principal, annual_rate, tenure_years, extra_payment=0.0):
+        r = annual_rate / 12 / 100
+        n = int(round(tenure_years * 12))
+        
+        if r == 0:
+            emi = principal / n if n > 0 else 0
+        else:
+            emi = (principal * r * ((1 + r) ** n)) / (((1 + r) ** n) - 1) if n > 0 else 0
+
+        schedule = []
+        balance = principal
+        cumulative_interest = 0.0
+        month = 0
+
+        # Safety catch for infinite loop if extra payment isn't enough to cover interest
+        if emi + extra_payment <= balance * r:
+            return emi, []
+
+        while balance > 0.5 and month < 1200:
+            month += 1
+            interest_payment = balance * r
+            principal_payment = (emi - interest_payment) + extra_payment
+            
+            if balance - principal_payment < 0:
+                principal_payment = balance
+                balance = 0
+            else:
+                balance -= principal_payment
+                
+            cumulative_interest += interest_payment
+            schedule.append({
+                "Month": month,
+                "Balance": balance,
+                "Cumulative Interest": cumulative_interest
+            })
+            
+        return emi, schedule
+
     if loans_raw:
         for loan in loans_raw:
             p = float(loan.get("principal", 0.0))
-            r = float(loan.get("interest_rate", 8.5)) / 1200
-            n = int(float(loan.get("tenure_years", 20)) * 12)
-            emi = (
-                (p * r * ((1 + r) ** n)) / (((1 + r) ** n) - 1)
-                if r > 0 and n > 0
-                else 0.0
-            )
+            r_annual = float(loan.get("interest_rate", 8.5))
+            years = float(loan.get("tenure_years", 20.0))
+            extra_prep = float(loan.get("extra_prepayment", 0.0))
+            
+            emi, sched_std = calculate_amortization(p, r_annual, years, 0.0)
+            _, sched_fast = calculate_amortization(p, r_annual, years, extra_prep)
 
-            # Header and Delete Button for each loan
+            rem_months = int(round(years * 12))
+            y_rem = rem_months // 12
+            m_rem = rem_months % 12
+            tenure_str = f"{y_rem} Yrs {m_rem} Mos" if y_rem > 0 else f"{m_rem} Mos"
+
             col_title, col_del = st.columns([5, 1])
             with col_title:
                 st.markdown(f"#### 🏦 {loan.get('name', 'Home Loan')}")
@@ -1223,53 +1239,123 @@ with tab_loans:
                     st.cache_data.clear()
                     st.rerun()
 
-            # Metrics for each loan
-            l_col1, l_col2, l_col3, l_col4 = st.columns(4)
-            l_col1.metric("Principal Outstanding", f"₹{p:,.2f}")
-            l_col2.metric("Interest Rate", f"{loan.get('interest_rate', 8.5)}%")
-            l_col3.metric("Tenure Remaining", f"{loan.get('tenure_years', 20)} Yrs")
-            l_col4.metric("Estimated EMI", f"₹{emi:,.2f}/mo")
+            std_int = sched_std[-1]['Cumulative Interest'] if sched_std else 0
+            fast_int = sched_fast[-1]['Cumulative Interest'] if sched_fast else 0
+            saved_int = std_int - fast_int
+            months_saved = len(sched_std) - len(sched_fast)
+
+            l1, l2, l3, l4 = st.columns(4)
+            l1.metric("Current Principal", f"₹{p:,.2f}")
+            l2.metric("Interest Rate & Tenure", f"{r_annual}% | {tenure_str}")
+            l3.metric("Fixed EMI", f"₹{emi:,.2f}/mo")
+            l4.metric(
+                "Interest Saved (via Extra Pay)", 
+                f"₹{saved_int:,.2f}", 
+                f"Saves {months_saved} Months" if extra_prep > 0 and sched_fast else "No extra payments",
+                delta_color="normal"
+            )
+
+            # Trajectory Graphs
+            df_std = pd.DataFrame(sched_std)
+            df_fast = pd.DataFrame(sched_fast)
+            
+            fig = go.Figure()
+            if not df_std.empty:
+                fig.add_trace(go.Scatter(x=df_std["Month"], y=df_std["Balance"], name="Standard Repayment", fill='tozeroy', line=dict(color="#ef4444", width=3)))
+            if not df_fast.empty and extra_prep > 0:
+                fig.add_trace(go.Scatter(x=df_fast["Month"], y=df_fast["Balance"], name=f"With ₹{extra_prep:,.0f} Extra/mo", fill='tozeroy', line=dict(color="#10b981", width=3)))
+            
+            fig.update_layout(
+                title="Principal Paydown Trajectory",
+                xaxis_title="Months Remaining",
+                yaxis_title="Remaining Balance (₹)",
+                height=350,
+                margin=dict(l=0, r=0, t=40, b=0),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Update Current Balance Form (Reverse-engineers precise timeline)
+            with st.expander(f"✏️ Update Balance / Log Repayment for {loan.get('name')}"):
+                st.info("Match these values exactly to your bank statement today. We mathematically calculate your precise remaining timeline so your EMI stays perfectly constant!")
+                with st.form(f"edit_loan_{loan.get('id')}"):
+                    e_col1, e_col2 = st.columns(2)
+                    with e_col1:
+                        new_p = st.number_input("Current Outstanding Principal (₹)", value=float(p), step=10000.0)
+                        new_emi = st.number_input("Actual Fixed EMI (₹)", value=float(emi), step=1000.0)
+                    with e_col2:
+                        new_r = st.number_input("Interest Rate (%)", value=float(r_annual), step=0.1)
+                        new_extra = st.number_input("Extra Monthly Prepayment (₹)", value=float(extra_prep), step=1000.0)
+                    
+                    if st.form_submit_button("Save & Sync Balance"):
+                        calc_r = new_r / 12 / 100
+                        
+                        if calc_r == 0:
+                            new_t = (new_p / new_emi) / 12 if new_emi > 0 else 0
+                        elif new_emi <= new_p * calc_r:
+                            st.error("Error: EMI must be strictly greater than the monthly interest generated.")
+                            new_t = 0
+                        else:
+                            n_months = -math.log(1 - (new_p * calc_r) / new_emi) / math.log(1 + calc_r)
+                            new_t = n_months / 12
+
+                        if new_t > 0:
+                            payload = {
+                                "name": loan.get("name"),
+                                "principal": new_p,
+                                "interest_rate": new_r,
+                                "tenure_years": new_t,
+                                "extra_prepayment": new_extra
+                            }
+                            res = requests.put(f"{API_URL}/api/v1/loans/{loan.get('id')}", headers=HEADERS, json=payload)
+                            if res.status_code == 200:
+                                st.success("Loan synced successfully!")
+                                st.cache_data.clear()
+                                st.rerun()
+                            else:
+                                st.error(f"Failed to update: {res.text}")
             st.markdown("---")
     else:
         st.info("No active loans tracked.")
 
-    with st.expander("➕ Add Loan Account"):
+    # New Loan Entry Form
+    with st.expander("➕ Add New Loan Account"):
+        st.info("Enter your current outstanding details. We calculate your exact remaining timeline based on your Fixed EMI.")
         with st.form("loan_form"):
             lname = st.text_input("Loan Name", placeholder="e.g., ICICI Home Loan, Auto Loan")
-            lprincipal = st.number_input(
-                "Principal (₹)",
-                min_value=0.0,
-                value=2500000.0,
-                step=50000.0,
-            )
-            lrate = st.number_input(
-                "Interest Rate (%)", min_value=0.0, value=8.75, step=0.1
-            )
-            ltenure = st.number_input(
-                "Tenure (Years)", min_value=1.0, value=20.0, step=1.0
-            )
+            lprincipal = st.number_input("Current Outstanding Principal (₹)", min_value=0.0, value=2500000.0, step=50000.0)
+            lemi = st.number_input("Actual Fixed EMI (₹)", min_value=1.0, value=25000.0, step=1000.0)
+            lrate = st.number_input("Interest Rate (%)", min_value=0.0, value=8.75, step=0.1)
+            lextra = st.number_input("Extra Monthly Prepayment (₹)", min_value=0.0, value=0.0, step=1000.0)
             
             if st.form_submit_button("Save Loan"):
-                payload = {
-                    "name": lname.strip(),
-                    "principal": lprincipal,
-                    "interest_rate": lrate,
-                    "tenure_years": ltenure,
-                    "extra_prepayment": 0.0
-                }
+                calc_r = lrate / 12 / 100
                 
-                res = requests.post(
-                    f"{API_URL}/api/v1/loans/",
-                    headers=HEADERS,
-                    json=payload,
-                )
-                
-                if res.status_code == 200:
-                    st.success(f"Loan '{lname}' added successfully!")
-                    st.cache_data.clear() # This ensures the UI instantly updates
-                    st.rerun()
+                if calc_r == 0:
+                    calc_t = (lprincipal / lemi) / 12 if lemi > 0 else 0
+                elif lemi <= lprincipal * calc_r:
+                    st.error("Error: EMI must be greater than the monthly interest generated.")
+                    calc_t = 0
                 else:
-                    st.error(f"Failed to add loan: {res.text}")
+                    n_months = -math.log(1 - (lprincipal * calc_r) / lemi) / math.log(1 + calc_r)
+                    calc_t = n_months / 12
+
+                if calc_t > 0:
+                    payload = {
+                        "name": lname.strip(),
+                        "principal": lprincipal,
+                        "interest_rate": lrate,
+                        "tenure_years": calc_t,
+                        "extra_prepayment": lextra
+                    }
+                    
+                    res = requests.post(f"{API_URL}/api/v1/loans/", headers=HEADERS, json=payload)
+                    if res.status_code == 200:
+                        st.success(f"Loan '{lname}' added successfully!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to add loan: {res.text}")
 
 # ==========================================
 # TAB 4: Savings & Investments
