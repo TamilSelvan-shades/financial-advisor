@@ -829,7 +829,7 @@ with tab_exp:
         if not df_ledger.empty:
             df_ledger = df_ledger.sort_values(by="Date", ascending=False)
             
-            # --- START: NEW DELETE UI ---
+            # --- START: DELETE UI ---
             st.markdown("###### 🗑️ Manage / Delete Transactions")
             del_col1, del_col2 = st.columns([3, 1])
             with del_col1:
@@ -853,7 +853,7 @@ with tab_exp:
                     else:
                         st.error(f"Failed to delete: {res.text}")
             st.write("---")
-            # --- END: NEW DELETE UI ---
+            # --- END: DELETE UI ---
 
             filter_acc = st.selectbox(
                 "Filter by Account",
@@ -1010,10 +1010,8 @@ with tab_exp:
                     with st.spinner("Analyzing spreadsheet structure..."):
                         try:
                             file_bytes = io.BytesIO(uploaded_file.read())
-                            # Allow pandas to pick engine (openpyxl for xlsx, xlrd for xls)
                             xl = pd.ExcelFile(file_bytes)
 
-                            # --- NEW LOGIC: DETECT ICICI BANK STATEMENT ---
                             # --- NEW LOGIC: DETECT ICICI BANK STATEMENT ---
                             if "OpTransactionHistory" in xl.sheet_names:
                                 st.success("🏦 Recognized ICICI Bank Statement format. Auto-categorizing transactions...")
@@ -1095,52 +1093,6 @@ with tab_exp:
                                     requests.post(f"{API_URL}/api/v1/expenses/bulk", headers=HEADERS, json={"expenses": bulk_exp, "replace_all": replace_existing})
                                 
                                 st.success(f"Ingested & Categorized {len(bulk_inc)} incomes and {len(bulk_exp)} expenses!")
-                                st.cache_data.clear()
-                                st.rerun()
-                                st.success("🏦 Recognized ICICI Bank Statement format.")
-                                # ICICI headers start at row 13 (skiprows=12)
-                                df_bank = pd.read_excel(xl, sheet_name="OpTransactionHistory", skiprows=12)
-                                df_bank = df_bank.dropna(subset=['Transaction Date', 'Withdrawal Amount(INR)', 'Deposit Amount(INR)'], how='all')
-                                
-                                bulk_exp = []
-                                bulk_inc = []
-                                
-                                for _, row in df_bank.iterrows():
-                                    raw_date = str(row['Transaction Date']).strip()
-                                    try:
-                                        dt = pd.to_datetime(raw_date, format="%d,%m,%Y").strftime("%Y-%m-%d")
-                                    except:
-                                        dt = pd.to_datetime(raw_date, errors="coerce").strftime("%Y-%m-%d")
-                                        
-                                    desc = str(row.get('Transaction Remarks', '')).strip()
-                                    w_amt = pd.to_numeric(row.get('Withdrawal Amount(INR)', 0), errors='coerce')
-                                    d_amt = pd.to_numeric(row.get('Deposit Amount(INR)', 0), errors='coerce')
-                                    
-                                    if pd.notna(w_amt) and w_amt > 0:
-                                        bulk_exp.append({
-                                            "date": dt,
-                                            "category": "General", # Can be recategorized manually later
-                                            "amount": float(w_amt),
-                                            "account": "ICICI Savings Account",
-                                            "description": desc,
-                                            "remarks": "Auto-imported from ICICI statement"
-                                        })
-                                    if pd.notna(d_amt) and d_amt > 0:
-                                        bulk_inc.append({
-                                            "date": dt,
-                                            "category": "General", 
-                                            "amount": float(d_amt),
-                                            "account": "ICICI Savings Account",
-                                            "description": desc,
-                                            "remarks": "Auto-imported from ICICI statement"
-                                        })
-                                
-                                if bulk_inc:
-                                    requests.post(f"{API_URL}/api/v1/incomes/bulk", headers=HEADERS, json={"incomes": bulk_inc, "replace_all": replace_existing})
-                                if bulk_exp:
-                                    requests.post(f"{API_URL}/api/v1/expenses/bulk", headers=HEADERS, json={"expenses": bulk_exp, "replace_all": replace_existing})
-                                
-                                st.success(f"Ingested {len(bulk_inc)} incomes and {len(bulk_exp)} expenses!")
                                 st.cache_data.clear()
                                 st.rerun()
 
@@ -1261,16 +1213,29 @@ with tab_loans:
                 else 0.0
             )
 
-            l_col1, l_col2, l_col3 = st.columns(3)
-            l_col1.metric("Loan Name", loan.get("name", "Home Loan"))
-            l_col2.metric("Principal Outstanding", f"₹{p:,.2f}")
-            l_col3.metric("Estimated EMI", f"₹{emi:,.2f}/mo")
+            # Header and Delete Button for each loan
+            col_title, col_del = st.columns([5, 1])
+            with col_title:
+                st.markdown(f"#### 🏦 {loan.get('name', 'Home Loan')}")
+            with col_del:
+                if st.button("❌ Delete", key=f"del_loan_{loan.get('id')}"):
+                    requests.delete(f"{API_URL}/api/v1/loans/{loan.get('id')}", headers=HEADERS)
+                    st.cache_data.clear()
+                    st.rerun()
+
+            # Metrics for each loan
+            l_col1, l_col2, l_col3, l_col4 = st.columns(4)
+            l_col1.metric("Principal Outstanding", f"₹{p:,.2f}")
+            l_col2.metric("Interest Rate", f"{loan.get('interest_rate', 8.5)}%")
+            l_col3.metric("Tenure Remaining", f"{loan.get('tenure_years', 20)} Yrs")
+            l_col4.metric("Estimated EMI", f"₹{emi:,.2f}/mo")
+            st.markdown("---")
     else:
         st.info("No active loans tracked.")
 
     with st.expander("➕ Add Loan Account"):
         with st.form("loan_form"):
-            lname = st.text_input("Loan Name", "ICICI Home Loan")
+            lname = st.text_input("Loan Name", placeholder="e.g., ICICI Home Loan, Auto Loan")
             lprincipal = st.number_input(
                 "Principal (₹)",
                 min_value=0.0,
@@ -1283,14 +1248,28 @@ with tab_loans:
             ltenure = st.number_input(
                 "Tenure (Years)", min_value=1.0, value=20.0, step=1.0
             )
+            
             if st.form_submit_button("Save Loan"):
-                requests.post(
-                    f"{API_URL}/api/v1/profile/",
+                payload = {
+                    "name": lname.strip(),
+                    "principal": lprincipal,
+                    "interest_rate": lrate,
+                    "tenure_years": ltenure,
+                    "extra_prepayment": 0.0
+                }
+                
+                res = requests.post(
+                    f"{API_URL}/api/v1/loans/",
                     headers=HEADERS,
-                    json={"key": "loan", "value": lname},
+                    json=payload,
                 )
-                st.success("Loan profile updated.")
-                st.rerun()
+                
+                if res.status_code == 200:
+                    st.success(f"Loan '{lname}' added successfully!")
+                    st.cache_data.clear() # This ensures the UI instantly updates
+                    st.rerun()
+                else:
+                    st.error(f"Failed to add loan: {res.text}")
 
 # ==========================================
 # TAB 4: Savings & Investments

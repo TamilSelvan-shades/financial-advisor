@@ -410,6 +410,7 @@ scheduler = BackgroundScheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Scheduled daily alert for 8:00 AM IST
     scheduler.add_job(
         scheduled_financial_health_check,
         "cron",
@@ -418,8 +419,10 @@ async def lifespan(app: FastAPI):
         id="daily_health_check",
     )
     scheduler.start()
+    print("🚀 Background scheduler started: Daily alerts registered for 08:00 AM.")
     yield
     scheduler.shutdown()
+    print("🛑 Background scheduler shut down.")
 
 
 app = FastAPI(
@@ -430,7 +433,6 @@ app = FastAPI(
 )
 
 # --- Secured Endpoints: Dashboard (GET) ---
-
 
 @app.get(
     "/api/v1/dashboard/", tags=["Dashboard"], dependencies=[Depends(verify_api_key)]
@@ -487,6 +489,18 @@ def delete_income(income_id: int, db: Session = Depends(get_db)):
         db.commit()
         return {"message": "Income deleted successfully."}
     raise HTTPException(status_code=404, detail="Income not found.")
+
+@app.delete(
+    "/api/v1/loans/{loan_id}", tags=["Loans"], dependencies=[Depends(verify_api_key)]
+)
+def delete_loan(loan_id: int, db: Session = Depends(get_db)):
+    loan = db.query(models.Loan).filter(models.Loan.id == loan_id).first()
+    if loan:
+        db.delete(loan)
+        db.commit()
+        return {"message": "Loan deleted successfully."}
+    raise HTTPException(status_code=404, detail="Loan not found.")
+
 
 # --- Secured Endpoints: Data Ingestion (POST) ---
 
@@ -617,6 +631,12 @@ def update_budget(budget: schemas.BudgetCreate, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Budget updated."}
 
+@app.post("/api/v1/loans/", tags=["Loans"], dependencies=[Depends(verify_api_key)])
+def create_loan(loan: schemas.LoanCreate, db: Session = Depends(get_db)):
+    db.add(models.Loan(**loan.model_dump()))
+    db.commit()
+    return {"message": "Loan added successfully."}
+
 
 @app.post(
     "/api/v1/investments/",
@@ -679,7 +699,6 @@ def update_profile(
 
 # --- System Reset Tool ---
 
-
 @app.post(
     "/api/v1/system/reset-db",
     tags=["System"],
@@ -695,7 +714,6 @@ def reset_database():
 
 
 # --- AI Agent Tools ---
-
 
 def get_net_worth_tool() -> str:
     db = SessionLocal()
@@ -746,12 +764,12 @@ def chat_with_agent(req: schemas.ChatRequest):
     dependencies=[Depends(verify_api_key)],
 )
 def trigger_alert_now(background_tasks: BackgroundTasks):
+    """Allows authenticated manual triggers of the daily briefing in the background."""
     background_tasks.add_task(scheduled_financial_health_check)
     return {"message": "Health check scheduled in background."}
 
 
 # --- Secured Telegram Webhook ---
-
 
 @app.post("/api/v1/webhook/telegram", tags=["Telegram Webhook"])
 async def telegram_webhook(
@@ -759,6 +777,7 @@ async def telegram_webhook(
     background_tasks: BackgroundTasks,
     x_telegram_bot_api_secret_token: Optional[str] = Header(None),
 ):
+    """Secured webhook receiver validating Telegram's native secret token header."""
     if x_telegram_bot_api_secret_token != TELEGRAM_WEBHOOK_SECRET:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -771,6 +790,7 @@ async def telegram_webhook(
         sender_id = str(message.get("from", {}).get("id", ""))
         text = message.get("text", "")
 
+        # Only process messages from your specific chat ID
         if sender_id == str(TELEGRAM_CHAT_ID) and text:
             background_tasks.add_task(async_process_telegram_message, text)
     except Exception as e:
