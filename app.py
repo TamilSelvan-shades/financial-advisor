@@ -56,26 +56,42 @@ st.markdown(
 )
 
 
-# --- Data Fetching ---
-@st.cache_data(ttl=3)
+# --- Data Fetching (Cold-Start Tolerant & Descriptive Errors) ---
+@st.cache_data(ttl=5)
 def fetch_dashboard_data():
+    error_detail = None
     try:
         resp = requests.get(
-            f"{API_URL}/api/v1/dashboard/", headers=HEADERS, timeout=10
+            f"{API_URL}/api/v1/dashboard/", headers=HEADERS, timeout=45
         )
         if resp.status_code == 200:
-            return resp.json()
-    except Exception:
-        pass
-    return None
+            return resp.json(), None
+        elif resp.status_code == 401:
+            error_detail = (
+                "HTTP 401 Unauthorized: 'API_SECRET_KEY' in Streamlit does not match "
+                "the 'API_SECRET_KEY' environment variable in your FastAPI backend."
+            )
+        else:
+            error_detail = f"Backend returned HTTP {resp.status_code}: {resp.text}"
+    except requests.exceptions.Timeout:
+        error_detail = (
+            "Connection timed out (45s). The backend is waking up from a Render "
+            "cold start. Please wait 15 seconds and refresh."
+        )
+    except Exception as e:
+        error_detail = f"Network connection error: {e}"
+    return None, error_detail
 
 
-data = fetch_dashboard_data()
+data, fetch_error = fetch_dashboard_data()
 
 if data is None:
     st.error(
-        f"⚠️ Unable to connect to backend at `{API_URL}`. Make sure Uvicorn is running locally (`uvicorn main:app --reload --port 8000`)."
+        f"⚠️ Unable to load dashboard from `{API_URL}`.\n\n**Details:** {fetch_error}"
     )
+    if st.button("🔄 Retry Connection"):
+        st.cache_data.clear()
+        st.rerun()
     st.stop()
 
 # --- Unpack Collections ---
@@ -312,7 +328,7 @@ with tab_chat:
                         f"{API_URL}/api/v1/chat/",
                         headers=HEADERS,
                         json={"message": user_query},
-                        timeout=30,
+                        timeout=35,
                     )
                     if chat_resp.status_code == 200:
                         agent_reply = chat_resp.json().get(
@@ -433,7 +449,7 @@ with tab_exp:
 
         if m_exp.empty and m_inc.empty:
             st.info(
-                f"No transactions recorded for {sel_month} {sel_year}. Use the '📥 Import Statement / Spreadsheet' tab to upload your spreadsheet or statements."
+                f"No transactions recorded for {sel_month} {sel_year}. Use the '📥 Import Statement / Spreadsheet' tab to upload your spreadsheet."
             )
         else:
             c1, c2 = st.columns(2)
@@ -776,6 +792,7 @@ with tab_exp:
             for _, r in df_expenses.iterrows():
                 ledger_entries.append(
                     {
+                        "ID": r["id"],
                         "Date": (
                             r["date"].strftime("%Y-%m-%d")
                             if pd.notna(r["date"])
@@ -793,6 +810,7 @@ with tab_exp:
             for _, r in df_incomes.iterrows():
                 ledger_entries.append(
                     {
+                        "ID": r["id"],
                         "Date": (
                             r["date"].strftime("%Y-%m-%d")
                             if pd.notna(r["date"])
@@ -810,6 +828,33 @@ with tab_exp:
         df_ledger = pd.DataFrame(ledger_entries)
         if not df_ledger.empty:
             df_ledger = df_ledger.sort_values(by="Date", ascending=False)
+            
+            # --- START: NEW DELETE UI ---
+            st.markdown("###### 🗑️ Manage / Delete Transactions")
+            del_col1, del_col2 = st.columns([3, 1])
+            with del_col1:
+                options = df_ledger.apply(
+                    lambda row: f"[{row['Type']}] ID: {row['ID']} | {row['Date']} | {row['Category']} | ₹{abs(row['Amount (₹)'])} | {str(row['Description'])[:20]}...", 
+                    axis=1
+                ).tolist()
+                options.insert(0, "Select a transaction to delete...")
+                tx_to_delete = st.selectbox("Select Transaction", options, label_visibility="collapsed")
+            with del_col2:
+                if st.button("Delete Transaction", use_container_width=True) and tx_to_delete != "Select a transaction to delete...":
+                    tx_type = "Expense" if "[Expense]" in tx_to_delete else "Income"
+                    tx_id = int(tx_to_delete.split("ID: ")[1].split(" | ")[0])
+                    endpoint = f"/api/v1/expenses/{tx_id}" if tx_type == "Expense" else f"/api/v1/incomes/{tx_id}"
+                    
+                    res = requests.delete(f"{API_URL}{endpoint}", headers=HEADERS)
+                    if res.status_code == 200:
+                        st.success("Transaction deleted successfully!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to delete: {res.text}")
+            st.write("---")
+            # --- END: NEW DELETE UI ---
+
             filter_acc = st.selectbox(
                 "Filter by Account",
                 ["All Accounts"] + sorted(list(account_names)),
@@ -942,146 +987,133 @@ with tab_exp:
     # 7. IMPORT SPREADSHEET OR CSV
     elif sub_view == "📥 Import Statement / Spreadsheet":
         st.markdown(
-            "##### ⚡ Upload Excel Spreadsheet (.xlsx) or Bank Statement (CSV)"
+            "##### ⚡ Upload Excel Spreadsheet (.xlsx / .xls) or Bank Statement (CSV)"
         )
 
         uploaded_file = st.file_uploader(
             "Upload File",
             type=["xlsx", "xls", "csv"],
-            help="Supports the complete 'Income and Expense Spreadsheet-Tamil.xlsx' or standard CSV statements.",
+            help="Supports standard templates, ICICI Bank Statements (.xls), or CSV.",
         )
 
         if uploaded_file is not None:
             filename_lower = uploaded_file.name.lower()
 
-            # Handle Excel (.xlsx / .xls)
             if filename_lower.endswith((".xlsx", ".xls")):
                 st.info(f"📑 Excel file detected: **{uploaded_file.name}**")
                 replace_existing = st.checkbox(
                     "Replace existing data with spreadsheet records",
-                    value=True,
+                    value=False, # Safe default prevents accidental wipes
                 )
 
-                if st.button("🚀 Process & Ingest Excel File"):
-                    with st.spinner(
-                        "Reading sheets, accounts, incomes, and expenses..."
-                    ):
+                if st.button("🚀 Process & Ingest File"):
+                    with st.spinner("Analyzing spreadsheet structure..."):
                         try:
                             file_bytes = io.BytesIO(uploaded_file.read())
+                            # Allow pandas to pick engine (openpyxl for xlsx, xlrd for xls)
                             xl = pd.ExcelFile(file_bytes)
 
-                            # 1. Accounts from Setup sheet
-                            if "Setup" in xl.sheet_names:
-                                df_setup = pd.read_excel(
-                                    xl, sheet_name="Setup", header=None
-                                )
-                                for r in range(6, 25):
-                                    val = df_setup.iloc[r, 14]
-                                    if pd.notna(val) and val not in [
-                                        "ACCOUNT",
-                                        "SET ACCOUNTS",
-                                    ]:
-                                        requests.post(
-                                            f"{API_URL}/api/v1/accounts/",
-                                            headers=HEADERS,
-                                            json={
-                                                "name": str(val).strip(),
-                                                "account_type": "Bank Account",
-                                                "initial_balance": 0.0,
-                                            },
-                                        )
-
-                            # 2. Incomes from Income sheet
-                            bulk_inc = []
-                            if "Income" in xl.sheet_names:
-                                df_i = pd.read_excel(
-                                    xl, sheet_name="Income", skiprows=5
-                                ).dropna(subset=["DATE", "AMOUNT"])
-                                for _, row in df_i.iterrows():
-                                    bulk_inc.append(
-                                        {
-                                            "date": pd.to_datetime(
-                                                row["DATE"]
-                                            ).strftime("%Y-%m-%d"),
-                                            "category": str(
-                                                row["CATEGORY"]
-                                            ).strip(),
-                                            "amount": float(row["AMOUNT"]),
-                                            "account": (
-                                                str(row["ACCOUNT"]).strip()
-                                                if pd.notna(row["ACCOUNT"])
-                                                else "ICICI Savings Account"
-                                            ),
-                                            "description": (
-                                                str(row["DESCRIPTION"]).strip()
-                                                if pd.notna(row["DESCRIPTION"])
-                                                else ""
-                                            ),
-                                            "remarks": (
-                                                str(row["REMARKS"]).strip()
-                                                if pd.notna(row["REMARKS"])
-                                                else ""
-                                            ),
-                                        }
-                                    )
+                            # --- NEW LOGIC: DETECT ICICI BANK STATEMENT ---
+                            if "OpTransactionHistory" in xl.sheet_names:
+                                st.success("🏦 Recognized ICICI Bank Statement format.")
+                                # ICICI headers start at row 13 (skiprows=12)
+                                df_bank = pd.read_excel(xl, sheet_name="OpTransactionHistory", skiprows=12)
+                                df_bank = df_bank.dropna(subset=['Transaction Date', 'Withdrawal Amount(INR)', 'Deposit Amount(INR)'], how='all')
+                                
+                                bulk_exp = []
+                                bulk_inc = []
+                                
+                                for _, row in df_bank.iterrows():
+                                    raw_date = str(row['Transaction Date']).strip()
+                                    try:
+                                        dt = pd.to_datetime(raw_date, format="%d,%m,%Y").strftime("%Y-%m-%d")
+                                    except:
+                                        dt = pd.to_datetime(raw_date, errors="coerce").strftime("%Y-%m-%d")
+                                        
+                                    desc = str(row.get('Transaction Remarks', '')).strip()
+                                    w_amt = pd.to_numeric(row.get('Withdrawal Amount(INR)', 0), errors='coerce')
+                                    d_amt = pd.to_numeric(row.get('Deposit Amount(INR)', 0), errors='coerce')
+                                    
+                                    if pd.notna(w_amt) and w_amt > 0:
+                                        bulk_exp.append({
+                                            "date": dt,
+                                            "category": "General", # Can be recategorized manually later
+                                            "amount": float(w_amt),
+                                            "account": "ICICI Savings Account",
+                                            "description": desc,
+                                            "remarks": "Auto-imported from ICICI statement"
+                                        })
+                                    if pd.notna(d_amt) and d_amt > 0:
+                                        bulk_inc.append({
+                                            "date": dt,
+                                            "category": "General", 
+                                            "amount": float(d_amt),
+                                            "account": "ICICI Savings Account",
+                                            "description": desc,
+                                            "remarks": "Auto-imported from ICICI statement"
+                                        })
+                                
                                 if bulk_inc:
-                                    requests.post(
-                                        f"{API_URL}/api/v1/incomes/bulk",
-                                        headers=HEADERS,
-                                        json={
-                                            "incomes": bulk_inc,
-                                            "replace_all": replace_existing,
-                                        },
-                                    )
-
-                            # 3. Expenses from Expenses sheet
-                            bulk_exp = []
-                            if "Expenses" in xl.sheet_names:
-                                df_e = pd.read_excel(
-                                    xl, sheet_name="Expenses", skiprows=5
-                                ).dropna(subset=["DATE", "AMOUNT"])
-                                for _, row in df_e.iterrows():
-                                    bulk_exp.append(
-                                        {
-                                            "date": pd.to_datetime(
-                                                row["DATE"]
-                                            ).strftime("%Y-%m-%d"),
-                                            "category": str(
-                                                row["CATEGORY"]
-                                            ).strip(),
-                                            "amount": float(row["AMOUNT"]),
-                                            "account": (
-                                                str(row["ACCOUNT"]).strip()
-                                                if pd.notna(row["ACCOUNT"])
-                                                else "ICICI Savings Account"
-                                            ),
-                                            "description": (
-                                                str(row["DESCRIPTION"]).strip()
-                                                if pd.notna(row["DESCRIPTION"])
-                                                else ""
-                                            ),
-                                            "remarks": (
-                                                str(row["REMARKS"]).strip()
-                                                if pd.notna(row["REMARKS"])
-                                                else ""
-                                            ),
-                                        }
-                                    )
+                                    requests.post(f"{API_URL}/api/v1/incomes/bulk", headers=HEADERS, json={"incomes": bulk_inc, "replace_all": replace_existing})
                                 if bulk_exp:
-                                    requests.post(
-                                        f"{API_URL}/api/v1/expenses/bulk",
-                                        headers=HEADERS,
-                                        json={
-                                            "expenses": bulk_exp,
-                                            "replace_all": replace_existing,
-                                        },
-                                    )
+                                    requests.post(f"{API_URL}/api/v1/expenses/bulk", headers=HEADERS, json={"expenses": bulk_exp, "replace_all": replace_existing})
+                                
+                                st.success(f"Ingested {len(bulk_inc)} incomes and {len(bulk_exp)} expenses!")
+                                st.cache_data.clear()
+                                st.rerun()
 
-                            st.success(
-                                f"Successfully imported {len(bulk_inc)} income rows and {len(bulk_exp)} expense rows!"
-                            )
-                            st.cache_data.clear()
-                            st.rerun()
+                            # --- ORIGINAL LOGIC: CUSTOM TEMPLATE ---
+                            else:
+                                st.info("Processing as standard application template...")
+                                
+                                # 1. Accounts
+                                if "Setup" in xl.sheet_names:
+                                    df_setup = pd.read_excel(xl, sheet_name="Setup", header=None)
+                                    for r in range(6, 25):
+                                        val = df_setup.iloc[r, 14]
+                                        if pd.notna(val) and val not in ["ACCOUNT", "SET ACCOUNTS"]:
+                                            requests.post(
+                                                f"{API_URL}/api/v1/accounts/",
+                                                headers=HEADERS,
+                                                json={"name": str(val).strip(), "account_type": "Bank Account", "initial_balance": 0.0},
+                                            )
+
+                                # 2. Incomes
+                                bulk_inc = []
+                                if "Income" in xl.sheet_names:
+                                    df_i = pd.read_excel(xl, sheet_name="Income", skiprows=5).dropna(subset=["DATE", "AMOUNT"])
+                                    for _, row in df_i.iterrows():
+                                        bulk_inc.append({
+                                            "date": pd.to_datetime(row["DATE"]).strftime("%Y-%m-%d"),
+                                            "category": str(row["CATEGORY"]).strip(),
+                                            "amount": float(row["AMOUNT"]),
+                                            "account": str(row["ACCOUNT"]).strip() if pd.notna(row["ACCOUNT"]) else "ICICI Savings Account",
+                                            "description": str(row["DESCRIPTION"]).strip() if pd.notna(row["DESCRIPTION"]) else "",
+                                            "remarks": str(row["REMARKS"]).strip() if pd.notna(row["REMARKS"]) else "",
+                                        })
+                                    if bulk_inc:
+                                        requests.post(f"{API_URL}/api/v1/incomes/bulk", headers=HEADERS, json={"incomes": bulk_inc, "replace_all": replace_existing})
+
+                                # 3. Expenses
+                                bulk_exp = []
+                                if "Expenses" in xl.sheet_names:
+                                    df_e = pd.read_excel(xl, sheet_name="Expenses", skiprows=5).dropna(subset=["DATE", "AMOUNT"])
+                                    for _, row in df_e.iterrows():
+                                        bulk_exp.append({
+                                            "date": pd.to_datetime(row["DATE"]).strftime("%Y-%m-%d"),
+                                            "category": str(row["CATEGORY"]).strip(),
+                                            "amount": float(row["AMOUNT"]),
+                                            "account": str(row["ACCOUNT"]).strip() if pd.notna(row["ACCOUNT"]) else "ICICI Savings Account",
+                                            "description": str(row["DESCRIPTION"]).strip() if pd.notna(row["DESCRIPTION"]) else "",
+                                            "remarks": str(row["REMARKS"]).strip() if pd.notna(row["REMARKS"]) else "",
+                                        })
+                                    if bulk_exp:
+                                        requests.post(f"{API_URL}/api/v1/expenses/bulk", headers=HEADERS, json={"expenses": bulk_exp, "replace_all": replace_existing})
+
+                                st.success("Standard template import complete.")
+                                st.cache_data.clear()
+                                st.rerun()
+
                         except Exception as ex:
                             st.error(f"Failed to process Excel file: {ex}")
 

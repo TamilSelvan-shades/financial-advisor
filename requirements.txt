@@ -10,3 +10,4 @@ python-dotenv
 requests
 plotly
 openpyxl
+xlrd>=2.0.1

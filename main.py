@@ -27,37 +27,129 @@ from database import SessionLocal, engine, get_db
 import models
 import schemas
 
-# --- Universal Self-Healing Schema Synchronizer ---
+# --- Step 1: Detect & Drop any obsolete prototype tables lacking 'id' ---
 try:
     inspector = inspect(engine)
-    existing_tables = set(inspector.get_table_names())
-    tables_to_rebuild = []
+    existing_tables = inspector.get_table_names()
+    tables_requiring_id = [
+        "budgets",
+        "loans",
+        "investments",
+        "goals",
+        "bills",
+        "credit_scores",
+        "expenses",
+        "incomes",
+        "accounts",
+        "balance_adjustments",
+    ]
 
-    # Check every model table against what is actually inside PostgreSQL
-    for table_name, table in models.Base.metadata.tables.items():
-        if table_name in existing_tables:
-            existing_cols = {
-                c["name"] for c in inspector.get_columns(table_name)
-            }
-            expected_cols = {c.name for c in table.columns}
-            # If any required column is missing, flag table for clean rebuild
-            if not expected_cols.issubset(existing_cols):
-                tables_to_rebuild.append(table_name)
-
-    if tables_to_rebuild:
-        with engine.connect() as conn:
-            for tbl in tables_to_rebuild:
-                print(
-                    f"Auto-fixing schema mismatch: rebuilding table '{tbl}'..."
-                )
-                conn.execute(text(f'DROP TABLE IF EXISTS "{tbl}" CASCADE;'))
-            conn.commit()
-
-    # Recreate all tables cleanly matching models.py
-    models.Base.metadata.create_all(bind=engine)
+    with engine.connect() as conn:
+        for tbl in tables_requiring_id:
+            if tbl in existing_tables:
+                cols = {c["name"] for c in inspector.get_columns(tbl)}
+                if "id" not in cols:
+                    print(
+                        f"Table '{tbl}' lacks required primary key 'id'. Dropping obsolete table..."
+                    )
+                    conn.execute(text(f'DROP TABLE IF EXISTS "{tbl}" CASCADE;'))
+        conn.commit()
 except Exception as e:
-    print(f"Schema sync note: {e}")
-    models.Base.metadata.create_all(bind=engine)
+    print(f"Pre-migration warning: {e}")
+
+# --- Step 2: Create all tables (creates missing & newly dropped tables cleanly) ---
+models.Base.metadata.create_all(bind=engine)
+
+# --- Step 3: Auto-patch any missing columns on existing tables ---
+MIGRATION_COLUMNS = {
+    "expenses": [
+        ("date", "VARCHAR(50)"),
+        ("category", "VARCHAR(100)"),
+        ("amount", "FLOAT DEFAULT 0.0"),
+        ("description", "VARCHAR(255) DEFAULT ''"),
+        ("account", "VARCHAR(100) DEFAULT 'ICICI Savings Account'"),
+        ("remarks", "TEXT DEFAULT ''"),
+    ],
+    "incomes": [
+        ("date", "VARCHAR(50)"),
+        ("category", "VARCHAR(100)"),
+        ("amount", "FLOAT DEFAULT 0.0"),
+        ("account", "VARCHAR(100) DEFAULT 'ICICI Savings Account'"),
+        ("description", "VARCHAR(255) DEFAULT ''"),
+        ("remarks", "TEXT DEFAULT ''"),
+    ],
+    "accounts": [
+        ("name", "VARCHAR(100)"),
+        ("account_type", "VARCHAR(50) DEFAULT 'Bank Account'"),
+        ("initial_balance", "FLOAT DEFAULT 0.0"),
+    ],
+    "balance_adjustments": [
+        ("date", "VARCHAR(50)"),
+        ("account", "VARCHAR(100)"),
+        ("amount", "FLOAT DEFAULT 0.0"),
+        ("reason", "VARCHAR(255) DEFAULT ''"),
+    ],
+    "loans": [
+        ("name", "VARCHAR(100)"),
+        ("principal", "FLOAT DEFAULT 0.0"),
+        ("interest_rate", "FLOAT DEFAULT 8.5"),
+        ("tenure_years", "FLOAT DEFAULT 20.0"),
+        ("extra_prepayment", "FLOAT DEFAULT 0.0"),
+    ],
+    "investments": [
+        ("name", "VARCHAR(100)"),
+        ("category", "VARCHAR(100) DEFAULT 'Mutual Funds'"),
+        ("current_value", "FLOAT DEFAULT 0.0"),
+    ],
+    "budgets": [
+        ("category", "VARCHAR(100)"),
+        ("monthly_limit", "FLOAT DEFAULT 5000.0"),
+    ],
+    "goals": [
+        ("name", "VARCHAR(100)"),
+        ("target_amount", "FLOAT DEFAULT 0.0"),
+        ("current_amount", "FLOAT DEFAULT 0.0"),
+        ("target_date", "VARCHAR(50) DEFAULT ''"),
+    ],
+    "bills": [
+        ("name", "VARCHAR(100)"),
+        ("amount", "FLOAT DEFAULT 0.0"),
+        ("due_day", "INTEGER DEFAULT 1"),
+        ("status", "VARCHAR(50) DEFAULT 'Pending'"),
+    ],
+    "credit_scores": [
+        ("score", "INTEGER DEFAULT 750"),
+        ("date", "VARCHAR(50) DEFAULT ''"),
+        ("rating", "VARCHAR(50) DEFAULT 'Excellent'"),
+    ],
+    "profile": [
+        ("key", "VARCHAR(100)"),
+        ("value", "TEXT DEFAULT ''"),
+    ],
+}
+
+try:
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+
+    for tbl, cols in MIGRATION_COLUMNS.items():
+        if tbl in existing_tables:
+            existing_cols = {c["name"] for c in inspector.get_columns(tbl)}
+            for col_name, col_type in cols:
+                if col_name not in existing_cols:
+                    try:
+                        with engine.connect() as conn:
+                            conn.execute(
+                                text(
+                                    f'ALTER TABLE "{tbl}" ADD COLUMN "{col_name}" {col_type};'
+                                )
+                            )
+                            conn.commit()
+                            print(f"Auto-migrated: Added {col_name} to {tbl}")
+                    except Exception as col_err:
+                        print(f"Migration note ({tbl}.{col_name}): {col_err}")
+except Exception as e:
+    print(f"Post-migration warning: {e}")
 
 load_dotenv()
 
@@ -77,6 +169,7 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
 
 
 def verify_api_key(api_key: str = Security(api_key_header)):
+    """Verifies that incoming requests supply a valid secret API key."""
     if api_key != API_SECRET_KEY:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -89,6 +182,7 @@ def verify_api_key(api_key: str = Security(api_key_header)):
 
 
 def send_telegram_alert(message_text: str):
+    """Dispatches a Markdown message to Telegram asynchronously."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -106,6 +200,7 @@ def send_telegram_alert(message_text: str):
 def check_budget_threshold_alert(
     db: Session, category_name: str
 ) -> Optional[str]:
+    """Checks if current month's spending for a category has reached 90% or more of its limit."""
     budget = (
         db.query(models.Budget)
         .filter(func.lower(models.Budget.category) == category_name.lower())
@@ -143,12 +238,13 @@ def check_budget_threshold_alert(
 
 
 def scheduled_financial_health_check():
+    """Automated job: scans database for upcoming bills and 90%+ budget overspends at 8:00 AM IST."""
     db = SessionLocal()
     today = datetime.date.today()
     current_day = today.day
     current_month_prefix = today.strftime("%Y-%m")
 
-    # 1. Upcoming Bills
+    # 1. Check Upcoming Bills
     all_bills = db.query(models.Bill).all()
     upcoming_bills = []
     for b in all_bills:
@@ -157,7 +253,7 @@ def scheduled_financial_health_check():
             label = "TODAY" if days_away == 0 else f"in {days_away} days"
             upcoming_bills.append(f"• *{b.name}*: ₹{b.amount:,.2f} ({label})")
 
-    # 2. Budget Thresholds
+    # 2. Check Budget Thresholds (Current Month Only)
     budgets = db.query(models.Budget).all()
     budget_warnings = []
     for b in budgets:
@@ -181,6 +277,7 @@ def scheduled_financial_health_check():
                     f"• ⚠️ *{b.category}*: At {pct:.1f}% of budget (₹{spent:,.2f} / ₹{b.monthly_limit:,.2f})"
                 )
 
+    # 3. Overall Net Worth
     total_assets = (
         db.query(func.sum(models.Investment.current_value)).scalar() or 0.0
     )
@@ -208,6 +305,7 @@ def scheduled_financial_health_check():
 
 
 def async_process_telegram_message(user_text: str):
+    """Processes incoming Telegram messages via Gemini for both expenses and income."""
     if not ai_client:
         return
 
@@ -365,8 +463,32 @@ def get_dashboard_data(db: Session = Depends(get_db)):
     }
 
 
-# --- Secured Endpoints: Data Ingestion (POST) ---
+# --- Secured Endpoints: Data Deletion (DELETE) ---
 
+@app.delete(
+    "/api/v1/expenses/{expense_id}", tags=["Expenses"], dependencies=[Depends(verify_api_key)]
+)
+def delete_expense(expense_id: int, db: Session = Depends(get_db)):
+    exp = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
+    if exp:
+        db.delete(exp)
+        db.commit()
+        return {"message": "Expense deleted successfully."}
+    raise HTTPException(status_code=404, detail="Expense not found.")
+
+
+@app.delete(
+    "/api/v1/incomes/{income_id}", tags=["Income"], dependencies=[Depends(verify_api_key)]
+)
+def delete_income(income_id: int, db: Session = Depends(get_db)):
+    inc = db.query(models.Income).filter(models.Income.id == income_id).first()
+    if inc:
+        db.delete(inc)
+        db.commit()
+        return {"message": "Income deleted successfully."}
+    raise HTTPException(status_code=404, detail="Income not found.")
+
+# --- Secured Endpoints: Data Ingestion (POST) ---
 
 @app.post(
     "/api/v1/expenses/bulk",
@@ -553,6 +675,23 @@ def update_profile(
         db.add(models.Profile(key=profile.key, value=profile.value))
     db.commit()
     return {"message": "Profile updated."}
+
+
+# --- System Reset Tool ---
+
+
+@app.post(
+    "/api/v1/system/reset-db",
+    tags=["System"],
+    dependencies=[Depends(verify_api_key)],
+)
+def reset_database():
+    """Drops all tables and re-creates them cleanly according to models.py."""
+    models.Base.metadata.drop_all(bind=engine)
+    models.Base.metadata.create_all(bind=engine)
+    return {
+        "message": "All database tables dropped and cleanly re-created from models.py."
+    }
 
 
 # --- AI Agent Tools ---
