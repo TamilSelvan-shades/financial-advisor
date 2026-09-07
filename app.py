@@ -1014,7 +1014,89 @@ with tab_exp:
                             xl = pd.ExcelFile(file_bytes)
 
                             # --- NEW LOGIC: DETECT ICICI BANK STATEMENT ---
+                            # --- NEW LOGIC: DETECT ICICI BANK STATEMENT ---
                             if "OpTransactionHistory" in xl.sheet_names:
+                                st.success("🏦 Recognized ICICI Bank Statement format. Auto-categorizing transactions...")
+                                # ICICI headers start at row 13 (skiprows=12)
+                                df_bank = pd.read_excel(xl, sheet_name="OpTransactionHistory", skiprows=12)
+                                df_bank = df_bank.dropna(subset=['Transaction Date', 'Withdrawal Amount(INR)', 'Deposit Amount(INR)'], how='all')
+                                
+                                bulk_exp = []
+                                bulk_inc = []
+                                
+                                # Smart categorization rules
+                                def auto_categorize(remarks: str, is_expense: bool) -> str:
+                                    r = str(remarks).upper()
+                                    if not is_expense:
+                                        if "SALARY" in r: return "Salary"
+                                        if "INTEREST" in r: return "Interest Received"
+                                        if "DIVIDEND" in r: return "Dividends"
+                                        if "CASH DEP" in r: return "Cash Deposit"
+                                        return "Other Income"
+                                        
+                                    if any(kw in r for kw in ["ZOMATO", "SWIGGY", "SUNDAR VEG", "RESTAURANT", "HOTEL", "CAFE", "BAKERY", "FOOD"]):
+                                        return "Food & Dining"
+                                    elif any(kw in r for kw in ["RELIANCE", "AMAZON", "FLIPKART", "MYNTRA", "MART", "SUPERMARKET", "GROCERY", "DMART", "ZEPTO", "BLINKIT", "PAYTM POSTPAID"]):
+                                        return "Shopping & Groceries"
+                                    elif any(kw in r for kw in ["PETROL", "BUNK", "HPCL", "BPCL", "IOCL", "FUEL", "TOLL", "FASTAG", "UBER", "OLA", "RAPIDO", "IRCTC", "MAKE MY TRIP"]):
+                                        return "Fuel & Transport"
+                                    elif any(kw in r for kw in ["HATHWAY", "JIO", "AIRTEL", "VI", "RECHARGE", "ELECTRICITY", "EB", "TNEB", "BESCOM", "BROADBAND", "ACT", "DTH"]):
+                                        return "Utilities & Bills"
+                                    elif any(kw in r for kw in ["NETFLIX", "PRIME", "HOTSTAR", "SPOTIFY", "CINEMA", "BOOKMYSHOW", "PVR"]):
+                                        return "Entertainment"
+                                    elif any(kw in r for kw in ["PHARMACY", "HOSPITAL", "CLINIC", "APOLLO", "MEDPLUS", "NETMEDS", "1MG"]):
+                                        return "Health & Medical"
+                                    elif any(kw in r for kw in ["GROWW", "ZERODHA", "UPSTOX", "MUTUAL FUND", "AMC", "PPFAS", "SIP", "NIPPON"]):
+                                        return "Investments"
+                                    elif "EMI" in r or "LOAN" in r or "CREDIT CARD" in r or "SBI CARD" in r:
+                                        return "Loans & EMI"
+                                    elif "ATM" in r or "CASH WDL" in r or "CASH WITHDRAWAL" in r:
+                                        return "Cash Withdrawal"
+                                    elif "UPI" in r or "IMPS" in r or "NEFT" in r or "RTGS" in r:
+                                        return "Transfers & Payments"
+                                    else:
+                                        return "Others"
+
+                                for _, row in df_bank.iterrows():
+                                    raw_date = str(row['Transaction Date']).strip()
+                                    try:
+                                        dt = pd.to_datetime(raw_date, format="%d,%m,%Y").strftime("%Y-%m-%d")
+                                    except:
+                                        dt = pd.to_datetime(raw_date, errors="coerce").strftime("%Y-%m-%d")
+                                        
+                                    desc = str(row.get('Transaction Remarks', '')).strip()
+                                    w_amt = pd.to_numeric(row.get('Withdrawal Amount(INR)', 0), errors='coerce')
+                                    d_amt = pd.to_numeric(row.get('Deposit Amount(INR)', 0), errors='coerce')
+                                    
+                                    if pd.notna(w_amt) and w_amt > 0:
+                                        cat = auto_categorize(desc, is_expense=True)
+                                        bulk_exp.append({
+                                            "date": dt,
+                                            "category": cat,
+                                            "amount": float(w_amt),
+                                            "account": "ICICI Savings Account",
+                                            "description": desc,
+                                            "remarks": "Auto-imported from ICICI statement"
+                                        })
+                                    if pd.notna(d_amt) and d_amt > 0:
+                                        cat = auto_categorize(desc, is_expense=False)
+                                        bulk_inc.append({
+                                            "date": dt,
+                                            "category": cat,
+                                            "amount": float(d_amt),
+                                            "account": "ICICI Savings Account",
+                                            "description": desc,
+                                            "remarks": "Auto-imported from ICICI statement"
+                                        })
+                                
+                                if bulk_inc:
+                                    requests.post(f"{API_URL}/api/v1/incomes/bulk", headers=HEADERS, json={"incomes": bulk_inc, "replace_all": replace_existing})
+                                if bulk_exp:
+                                    requests.post(f"{API_URL}/api/v1/expenses/bulk", headers=HEADERS, json={"expenses": bulk_exp, "replace_all": replace_existing})
+                                
+                                st.success(f"Ingested & Categorized {len(bulk_inc)} incomes and {len(bulk_exp)} expenses!")
+                                st.cache_data.clear()
+                                st.rerun()
                                 st.success("🏦 Recognized ICICI Bank Statement format.")
                                 # ICICI headers start at row 13 (skiprows=12)
                                 df_bank = pd.read_excel(xl, sheet_name="OpTransactionHistory", skiprows=12)
