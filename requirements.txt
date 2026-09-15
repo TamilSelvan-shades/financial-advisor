@@ -11,3 +11,10 @@ requests
 plotly
 openpyxl
 xlrd>=2.0.1
+pyjwt
+passlib[argon2]
+argon2-cffi
+python-multipart
+razorpay
+pypdf>=5.0.0
+apscheduler

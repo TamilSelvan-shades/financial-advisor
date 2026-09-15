@@ -1,0 +1,1600 @@
+{
+  "bills": [
+    {
+      "id": 1,
+      "name": "High-Speed Fiber Internet",
+      "amount": 55.0,
+      "due_day": 5,
+      "category": "Utilities",
+      "status": "Auto-Debit",
+      "tenant_id": null
+    },
+    {
+      "id": 2,
+      "name": "Electricity / Power Bill",
+      "amount": 85.0,
+      "due_day": 12,
+      "category": "Utilities",
+      "status": "Unpaid",
+      "tenant_id": null
+    },
+    {
+      "id": 3,
+      "name": "Health Insurance Premium",
+      "amount": 140.0,
+      "due_day": 18,
+      "category": "Insurance",
+      "status": "Unpaid",
+      "tenant_id": null
+    },
+    {
+      "id": 4,
+      "name": "Cloud Storage & Streaming",
+      "amount": 19.99,
+      "due_day": 26,
+      "category": "Subscriptions",
+      "status": "Auto-Debit",
+      "tenant_id": null
+    },
+    {
+      "id": 5,
+      "name": "Broadband Internet",
+      "amount": 999.0,
+      "due_day": 10,
+      "category": null,
+      "status": "Pending",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 6,
+      "name": "Gym Membership",
+      "amount": 1500.0,
+      "due_day": 15,
+      "category": null,
+      "status": "Pending",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 8,
+      "name": "Bescom Electricity",
+      "amount": 3450.0,
+      "due_day": 15,
+      "category": null,
+      "status": "Pending",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 9,
+      "name": "Tata Play DTH & OTT",
+      "amount": 899.0,
+      "due_day": 22,
+      "category": null,
+      "status": "Paid",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 10,
+      "name": "Health Insurance EMI",
+      "amount": 4500.0,
+      "due_day": 28,
+      "category": null,
+      "status": "Pending",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 36,
+      "name": "Gym Fitness Pro",
+      "amount": 2500.0,
+      "due_day": 11,
+      "category": null,
+      "status": "Paid",
+      "tenant_id": "17413208-c76f-4f9e-9e05-ccdc7a0a97d0"
+    }
+  ],
+  "expenses": [
+    {
+      "id": 1,
+      "date": "2026-09-01",
+      "description": "AMAZON WEB SERVICES",
+      "amount": 12.5,
+      "category": "Miscellaneous",
+      "account": "ICICI Savings Account",
+      "remarks": null,
+      "tenant_id": null
+    },
+    {
+      "id": 2,
+      "date": "2026-09-02",
+      "description": "ZOMATO FOOD DELIVERY",
+      "amount": 15.0,
+      "category": "Miscellaneous",
+      "account": "ICICI Savings Account",
+      "remarks": null,
+      "tenant_id": null
+    },
+    {
+      "id": 3,
+      "date": "2026-09-02",
+      "description": "HDFC HOME LOAN EMI",
+      "amount": 500.0,
+      "category": "Miscellaneous",
+      "account": "ICICI Savings Account",
+      "remarks": null,
+      "tenant_id": null
+    },
+    {
+      "id": 4,
+      "date": "2026-09-03",
+      "description": "TESCO SUPERMARKET",
+      "amount": 45.2,
+      "category": "Miscellaneous",
+      "account": "ICICI Savings Account",
+      "remarks": null,
+      "tenant_id": null
+    },
+    {
+      "id": 5,
+      "date": "2026-09-03",
+      "description": "Starbucks Coffee",
+      "amount": 5.5,
+      "category": "Dining",
+      "account": "ICICI Savings Account",
+      "remarks": null,
+      "tenant_id": null
+    },
+    {
+      "id": 6,
+      "date": "2026-09-04",
+      "description": "Groceries",
+      "amount": 20.0,
+      "category": "Groceries",
+      "account": "ICICI Savings Account",
+      "remarks": null,
+      "tenant_id": null
+    },
+    {
+      "id": 7,
+      "date": "2026-09-04",
+      "description": "Subscriptions",
+      "amount": 10.0,
+      "category": "Subscriptions",
+      "account": "ICICI Savings Account",
+      "remarks": null,
+      "tenant_id": null
+    },
+    {
+      "id": 8,
+      "date": "2026-09-04",
+      "description": "Subscriptions",
+      "amount": 10.0,
+      "category": "Subscriptions",
+      "account": "ICICI Savings Account",
+      "remarks": null,
+      "tenant_id": null
+    },
+    {
+      "id": 10,
+      "date": "2026-09-09",
+      "description": "Coffee",
+      "amount": 120.0,
+      "category": "Food",
+      "account": "ICICI Savings Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 11,
+      "date": "2026-09-09",
+      "description": "Metro",
+      "amount": 50.0,
+      "category": "Transport",
+      "account": "ICICI Savings Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 12,
+      "date": "2026-09-09",
+      "description": "",
+      "amount": 454.0,
+      "category": "Transport",
+      "account": "ICICI Savings Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 13,
+      "date": "2026-04-05",
+      "description": "Apartment Maintenance",
+      "amount": 6500.0,
+      "category": "Utilities & Bills",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 14,
+      "date": "2026-04-12",
+      "description": "Supermarket Groceries",
+      "amount": 14200.0,
+      "category": "Groceries",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 15,
+      "date": "2026-04-20",
+      "description": "Weekend Dining & Movies",
+      "amount": 8500.0,
+      "category": "Food & Dining",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 16,
+      "date": "2026-05-04",
+      "description": "Broadband & Mobile",
+      "amount": 2499.0,
+      "category": "Utilities & Bills",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 17,
+      "date": "2026-05-15",
+      "description": "Fuel & Cab Rides",
+      "amount": 7800.0,
+      "category": "Transport & Fuel",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 18,
+      "date": "2026-05-22",
+      "description": "Organic Supermarket",
+      "amount": 16500.0,
+      "category": "Groceries",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 19,
+      "date": "2026-06-05",
+      "description": "Electricity Bill",
+      "amount": 4200.0,
+      "category": "Utilities & Bills",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 20,
+      "date": "2026-06-18",
+      "description": "Amazon Electronics",
+      "amount": 12400.0,
+      "category": "Shopping & E-Commerce",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 21,
+      "date": "2026-07-03",
+      "description": "Fine Dining Dinner",
+      "amount": 6200.0,
+      "category": "Food & Dining",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 22,
+      "date": "2026-07-14",
+      "description": "Metro & Fuel",
+      "amount": 6900.0,
+      "category": "Transport & Fuel",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 23,
+      "date": "2026-08-06",
+      "description": "Monthly Groceries",
+      "amount": 15800.0,
+      "category": "Groceries",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 24,
+      "date": "2026-08-20",
+      "description": "Family Outing",
+      "amount": 9500.0,
+      "category": "Entertainment",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 25,
+      "date": "2026-09-02",
+      "description": "BigBasket Fresh Groceries",
+      "amount": 8450.0,
+      "category": "Groceries",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 26,
+      "date": "2026-09-05",
+      "description": "Swiggy & Zomato Orders",
+      "amount": 4200.0,
+      "category": "Food & Dining",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 27,
+      "date": "2026-09-07",
+      "description": "Broadband & Utilities",
+      "amount": 3199.0,
+      "category": "Utilities & Bills",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 28,
+      "date": "2026-09-08",
+      "description": "Vehicle Service & Fuel",
+      "amount": 6500.0,
+      "category": "Transport & Fuel",
+      "account": "HDFC Salary Account",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 29,
+      "date": "2026-09-01",
+      "description": "AMAZON WEB SERVICES",
+      "amount": 12.5,
+      "category": "Shopping & Groceries",
+      "account": "ICICI Savings Account",
+      "remarks": "CSV Import",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 30,
+      "date": "2026-09-02",
+      "description": "ZOMATO FOOD DELIVERY",
+      "amount": 15.0,
+      "category": "Food & Dining",
+      "account": "ICICI Savings Account",
+      "remarks": "CSV Import",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 31,
+      "date": "2026-09-02",
+      "description": "HDFC HOME LOAN EMI",
+      "amount": 500.0,
+      "category": "Loans & EMI",
+      "account": "ICICI Savings Account",
+      "remarks": "CSV Import",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 32,
+      "date": "2026-09-03",
+      "description": "TESCO SUPERMARKET",
+      "amount": 45.2,
+      "category": "Shopping & Groceries",
+      "account": "ICICI Savings Account",
+      "remarks": "CSV Import",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 33,
+      "date": "2026-09-10",
+      "description": "Uber Ride",
+      "amount": 450.0,
+      "category": "Transport & Fuel",
+      "account": "HDFC Salary Account",
+      "remarks": "",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 34,
+      "date": "2026-09-10",
+      "description": "Uber Ride",
+      "amount": 450.0,
+      "category": "Transport & Fuel",
+      "account": "HDFC Salary Account",
+      "remarks": "",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 35,
+      "date": "2026-08-26",
+      "description": "Spotify Premium",
+      "amount": 119.0,
+      "category": "Subscriptions",
+      "account": "HDFC Salary Account",
+      "remarks": "",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 36,
+      "date": "2026-09-05",
+      "description": "Spotify Premium",
+      "amount": 179.0,
+      "category": "Subscriptions",
+      "account": "HDFC Salary Account",
+      "remarks": "",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 44,
+      "date": "2026-09-01",
+      "description": "VPS/M A V AGENC/202609011128/624405406111/CHENNAI",
+      "amount": 300.0,
+      "category": "Others",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 45,
+      "date": "2026-09-01",
+      "description": "UPI/JIO/relianceretail/Pay/KOTAK MAHI/110569496517/KJP110a418fbc624e3b89b16e07c5f7e479",
+      "amount": 29.0,
+      "category": "Shopping & Groceries",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 46,
+      "date": "2026-09-01",
+      "description": "UPI/SUNDAR VEG/getepay.gvi.sb/UPI/ICICI Bank/624469388334/ICI6e51539b376b4403874ec03bdec686d7",
+      "amount": 190.0,
+      "category": "Food & Dining",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 47,
+      "date": "2026-09-01",
+      "description": "UPI/ELLAPPAN S/paytm.s24tt4z@/UPI/YES BANK P/624425164705/ICI0dbf4cf90d074027b674d46bdd3dd60b",
+      "amount": 60.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 48,
+      "date": "2026-09-01",
+      "description": "UPI/BALAKRISHN/neuberg.kelamb/UPI/State Bank/661038204079/ICI7de229abf5ce422ab8e83d4bff1cc049",
+      "amount": 860.0,
+      "category": "Fuel & Transport",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 49,
+      "date": "2026-09-01",
+      "description": "UPI/AADHIRAIS/q816899740@ybl/UPI/YES BANK L/661003602824/ICIac174b33cefc4d2aa0f05841ab916b2f",
+      "amount": 280.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 50,
+      "date": "2026-09-01",
+      "description": "UPI/Pugalendhi/pugalk22-2@oks/Last month/State Bank/661007523856/ICI1624b06f29c14fc5b89d49dd7cb098f3",
+      "amount": 3158.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 51,
+      "date": "2026-09-01",
+      "description": "UPI/varankumar/varankumarsrin/Third mont/CANARA BAN/661005307615/ICI2ba23b5bdbd54903954f167264d24fc5",
+      "amount": 3500.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 52,
+      "date": "2026-09-01",
+      "description": "UPI/Hathway Ca/hathway.payu@h/UPIIntent/HDFC BANK/661037527518/PPPL304475828690109262254346a970a52",
+      "amount": 966.0,
+      "category": "Utilities & Bills",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 53,
+      "date": "2026-09-02",
+      "description": "ACH/GROWW INVEST TECH PR/ICIC7020511230011341/41OG8J4RNC4IPG",
+      "amount": 2000.0,
+      "category": "Investments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 54,
+      "date": "2026-09-02",
+      "description": "BIL/INFT/FI24621224/CC BillPay-6002/Self",
+      "amount": 11632.23,
+      "category": "Others",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 55,
+      "date": "2026-09-02",
+      "description": "UPI/6369875299/6369875299@pty/UPI/INDIAN OVE/661190930134/ICI526f8106a78d47a78dbee8e6a0f57bb4",
+      "amount": 420.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 196,
+      "date": "2026-09-11",
+      "description": "Bill: Gym Fitness Pro",
+      "amount": 2500.0,
+      "category": "Utilities",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-settled from Recurring Bills (Bill #34)",
+      "tenant_id": "17413208-c76f-4f9e-9e05-ccdc7a0a97d0"
+    },
+    {
+      "id": 198,
+      "date": "2026-09-11",
+      "description": "Bill: Gym Fitness Pro",
+      "amount": 2500.0,
+      "category": "Utilities",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-settled from Recurring Bills (Bill #36)",
+      "tenant_id": "17413208-c76f-4f9e-9e05-ccdc7a0a97d0"
+    },
+    {
+      "id": 56,
+      "date": "2026-09-02",
+      "description": "UPI/ASHL 60 PR/ashl60proopd.6/UPI/HDFC BANK/661194951939/ICIa267883a784e403e8368cbc06fa8a3c7",
+      "amount": 55.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 57,
+      "date": "2026-09-02",
+      "description": "UPI/Apollo hos/mab.0372440154/UPI/AXIS BANK/661147753734/ICIe226aeaa93024ec9a61dae960bd43a59",
+      "amount": 28708.0,
+      "category": "Health & Medical",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 58,
+      "date": "2026-09-02",
+      "description": "UPI/PONNUSAMY/bharatpe.9q0j0/Pay to Bha/AXIS BANK/661166357241/ICIbf7105d5",
+      "amount": 480.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 59,
+      "date": "2026-09-03",
+      "description": "UPI/Policybaza/paytm-82913706/OidPBSI623/YES BANK L/624605374489/PAYTM609038021188427509812026090307",
+      "amount": 1426.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 60,
+      "date": "2026-09-03",
+      "description": "UPI/Policybaza/paytm-82913706/OidPBSI623/YES BANK L/624605449115/PAYTM609038021329979791732026090307",
+      "amount": 2303.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 61,
+      "date": "2026-09-03",
+      "description": "UPI/govindmbc0/govindmbc09@ok/UPI/CANARA BAN/624675208141/ICI12a108fb19174023b34a5cab6b4ded25",
+      "amount": 50.0,
+      "category": "Utilities & Bills",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 62,
+      "date": "2026-09-03",
+      "description": "UPI/Mr POOMALA/poomalai760-2@/Dad/INDIAN BAN/624670651695/ICI85bbbafbe40f45a18c27fbaa0f76b74f",
+      "amount": 1000.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 63,
+      "date": "2026-09-03",
+      "description": "UPI/ganesh rcs/ganesh.rcse90-/Shuttle/HDFC BANK/624659068503/ICI30737d433a4144538f7dca772fa598e0",
+      "amount": 278.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 64,
+      "date": "2026-09-04",
+      "description": "UPI/Amazon Ind/amazon@rapl/You are pa/Amazon RBL/661315621177/RBA01a06ab94f1ed6b12aead72b22c4733e",
+      "amount": 2753.0,
+      "category": "Shopping & Groceries",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 65,
+      "date": "2026-09-04",
+      "description": "UPI/SRI NARAYA/vyapar.1741807/UPI/HDFC BANK/624716599186/ICIddb1e0ad5c40469ab5a4e14092f7c02a",
+      "amount": 30.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 66,
+      "date": "2026-09-04",
+      "description": "UPI/PRABHAKARA/gpay-122029275/UPI/AXIS BANK/661365428335/ICI9873c4126cbb4efeae5cabf93c691931",
+      "amount": 25.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 67,
+      "date": "2026-09-04",
+      "description": "UPI/SRI NARAYA/vyapar.1741807/UPI/HDFC BANK/661359121426/ICI6a3d38b974e54a5195165195c9c0198c",
+      "amount": 60.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 68,
+      "date": "2026-09-04",
+      "description": "UPI/Mr Pawar R/9959756650@ibl/UPI/INDIAN BAN/661360717168/ICI88cddd4c762d4f128339ebf1694f5c93",
+      "amount": 20.0,
+      "category": "Utilities & Bills",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 69,
+      "date": "2026-09-04",
+      "description": "UPI/Sampath Fr/q208347174@ybl/UPI/YES BANK L/661337919782/ICI5d4a9e108b5a4b69bc40d42b8e4ffb4b",
+      "amount": 40.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 70,
+      "date": "2026-09-04",
+      "description": "UPI/Malathi B/paytm.s21vzdu@/UPI/YES BANK P/661371529961/ICI12f0ec1395eb4a6880cdc9ca613c3485",
+      "amount": 20.0,
+      "category": "Utilities & Bills",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 71,
+      "date": "2026-09-04",
+      "description": "UPI/Priya S/paytmqr6uh9yt@/UPI/YES BANK L/661321122962/ICI08507ad199bb4b11a004004d87f65c26",
+      "amount": 350.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 72,
+      "date": "2026-09-04",
+      "description": "UPI/NAGARAJ R/gpay-121987008/UPI/AXIS BANK/661352814832/ICIbbcf7dbdf47f4566bbade80c5220a632",
+      "amount": 100.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 73,
+      "date": "2026-09-04",
+      "description": "UPI/PERIYANDAV/paytm.s1x1np2@/UPI/YES BANK P/661334819753/ICI6ed6669eeb1c49fe8b7aa0335e08ae8b",
+      "amount": 72.0,
+      "category": "Utilities & Bills",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 74,
+      "date": "2026-09-04",
+      "description": "UPI/CHEERYSTAR/ibkpos.ep14223/UPI/ICICI Bank/661344026044/ICIf9a5231ed7ae4d76a1c847b5963620d2",
+      "amount": 509.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 75,
+      "date": "2026-09-05",
+      "description": "BIL/Home Loan XX97722 EMI Tamilsel",
+      "amount": 10892.0,
+      "category": "Loans & EMI",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 76,
+      "date": "2026-09-05",
+      "description": "BIL/Home Loan XX99939 EMI Tamilsel",
+      "amount": 1415.0,
+      "category": "Loans & EMI",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 77,
+      "date": "2026-09-05",
+      "description": "RTGS/ICICR12026090512664297/Axis Bank/KANIMALAR S R S",
+      "amount": 200000.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 78,
+      "date": "2026-09-05",
+      "description": "BIL/Home Loan XX43873 EMI Tamilsel",
+      "amount": 137.0,
+      "category": "Loans & EMI",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 79,
+      "date": "2026-09-05",
+      "description": "BIL/Home Loan XX97723 EMI Tamilsel",
+      "amount": 59123.0,
+      "category": "Loans & EMI",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 80,
+      "date": "2026-09-05",
+      "description": "UPI/lchermadur/lchermadurai-1/UPI/CITY UNION/624889506166/ICI2faa2b18765d4ad998f63f58756a2457",
+      "amount": 1100.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 81,
+      "date": "2026-09-05",
+      "description": "UPI/AVENUE SUP/avenuesupermar/UPI/HDFC BANK/624895541769/ICIe08f0fb477ab416ca92af1e106acf043",
+      "amount": 612.74,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 82,
+      "date": "2026-09-05",
+      "description": "UPI/AVENUE SUP/avenuesupermar/UPI/HDFC BANK/624874741932/ICI3f1ac701bcbf48da80bd9fd8ee99d00c",
+      "amount": 2516.65,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 83,
+      "date": "2026-09-05",
+      "description": "UPI/COOKDTV/cookdtv1.easeb/Pay/HDFC BANK/624881652252/ICI5ae461d1e813423bbdbb92275fad6350",
+      "amount": 330.3,
+      "category": "Utilities & Bills",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 84,
+      "date": "2026-09-06",
+      "description": "UPI/Jayarabegu/paytm.s1pnkqs@/UPI/YES BANK P/624975583741/ICI1439d138b1df43e68f1c8634779ec871",
+      "amount": 500.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 85,
+      "date": "2026-09-06",
+      "description": "UPI/Ms VANAJA/paytmqr6xm0ij@/UPI/YES BANK L/624982977117/ICI8e957e277f3c46afab36ca2750c8cf63",
+      "amount": 129.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 86,
+      "date": "2026-09-06",
+      "description": "UPI/Murugan A/paytm.s23jrpz@/UPI/YES BANK P/624945582164/ICI1e6b1dcf86cc4137905c4a65153a7429",
+      "amount": 280.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 87,
+      "date": "2026-09-06",
+      "description": "MMT/IMPS/624911817257/Loan/ELAVARASI/IDIB000K227",
+      "amount": 16500.0,
+      "category": "Loans & EMI",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 88,
+      "date": "2026-09-06",
+      "description": "UPI/EBO MART P/ebomartprivate/UPI/HDFC BANK/661555706597/ICI6b0b91fe9e43467d9013bded98cbcf24",
+      "amount": 426.0,
+      "category": "Shopping & Groceries",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 89,
+      "date": "2026-09-06",
+      "description": "UPI/V QUBA JUI/vqubajuicezone/UPI/TAMILNAD M/661506712418/ICI2383a298d6df4c0abd4f625e566a9f1d",
+      "amount": 30.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 90,
+      "date": "2026-09-06",
+      "description": "UPI/Gayatri el/q813845789@ybl/UPI/YES BANK L/661552716894/ICIdfeac134059e4e3982996aea02e67fa7",
+      "amount": 240.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 91,
+      "date": "2026-09-06",
+      "description": "UPI/SURESH KUM/suresh-n336@pt/Carpenter/TAMILNAD M/661584631734/ICI76d63a61a8544bf5a8a5e08f2e4cfb38",
+      "amount": 2800.0,
+      "category": "Transfers & Payments",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 92,
+      "date": "2026-09-06",
+      "description": "UPI/JIO/relianceretail/Pay/KOTAK MAHI/661559652915/KJPf46317598afb4aaa8ec6fdceb4b4abd2",
+      "amount": 69.0,
+      "category": "Shopping & Groceries",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 93,
+      "date": "2026-09-10",
+      "description": "Dinner at Dominos",
+      "amount": 445.0,
+      "category": "Food & Dining",
+      "account": "Credit Card",
+      "remarks": "Voice Ingest | Spoken: \"Spend 400 445 rupees on dinner at Dominos on my credit card.\"",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 94,
+      "date": "2026-09-10",
+      "description": "Breakfast at Adyar Ananda Bhavan",
+      "amount": 500.0,
+      "category": "Food & Dining",
+      "account": "Savings Account",
+      "remarks": "Voice Ingest | Spoken: \"I spent rupees 500 on breakfast in the Adyar Ananda Bhavan.\"",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 195,
+      "date": "2026-09-11",
+      "description": "Bill: Gym Fitness Pro",
+      "amount": 2500.0,
+      "category": "Utilities",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-settled from Recurring Bills (Bill #33)",
+      "tenant_id": "17413208-c76f-4f9e-9e05-ccdc7a0a97d0"
+    },
+    {
+      "id": 197,
+      "date": "2026-09-11",
+      "description": "Bill: Gym Fitness Pro",
+      "amount": 2500.0,
+      "category": "Utilities",
+      "account": "ICICI Savings Account",
+      "remarks": "Auto-settled from Recurring Bills (Bill #35)",
+      "tenant_id": "17413208-c76f-4f9e-9e05-ccdc7a0a97d0"
+    },
+    {
+      "id": 199,
+      "date": "2026-09-11",
+      "description": "Pizzahut",
+      "amount": 500.0,
+      "category": "Dining",
+      "account": "ICICI Savings Account",
+      "remarks": "Logged via WhatsApp Webhook",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    }
+  ],
+  "loans": [
+    {
+      "id": 1,
+      "name": "Home Loan",
+      "principal": 250000.0,
+      "annual_rate": 7.5,
+      "tenure_months": 240,
+      "start_date": "2026-01-01",
+      "interest_rate": 8.5,
+      "tenure_years": 20.0,
+      "extra_prepayment": 0.0,
+      "tenant_id": null
+    },
+    {
+      "id": 3,
+      "name": "ICICI Home Loan",
+      "principal": 7500000.0,
+      "annual_rate": null,
+      "tenure_months": null,
+      "start_date": null,
+      "interest_rate": 7.4,
+      "tenure_years": 20.0,
+      "extra_prepayment": 0.0,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 4,
+      "name": "Loan",
+      "principal": 500000.0,
+      "annual_rate": null,
+      "tenure_months": 60,
+      "start_date": null,
+      "interest_rate": 9.0,
+      "tenure_years": 5.0,
+      "extra_prepayment": 0.0,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    }
+  ],
+  "investments": [
+    {
+      "id": 1,
+      "name": "Index Mutual Fund",
+      "asset_type": "Mutual Funds",
+      "invested_amount": 25000.0,
+      "current_value": 31200.0,
+      "institution": "Zerodha / Vanguard",
+      "category": "Mutual Funds",
+      "tenant_id": null
+    },
+    {
+      "id": 2,
+      "name": "Emergency Reserve",
+      "asset_type": "Savings/Cash",
+      "invested_amount": 15000.0,
+      "current_value": 15000.0,
+      "institution": "High-Yield Savings",
+      "category": "Mutual Funds",
+      "tenant_id": null
+    },
+    {
+      "id": 3,
+      "name": "1-Year Fixed Deposit",
+      "asset_type": "Fixed Deposit",
+      "invested_amount": 20000.0,
+      "current_value": 21400.0,
+      "institution": "HDFC / Chase",
+      "category": "Mutual Funds",
+      "tenant_id": null
+    },
+    {
+      "id": 4,
+      "name": "Tech Blue Chips",
+      "asset_type": "Stocks",
+      "invested_amount": 10000.0,
+      "current_value": 12800.0,
+      "institution": "Brokerage Account",
+      "category": "Mutual Funds",
+      "tenant_id": null
+    },
+    {
+      "id": 5,
+      "name": "NPS",
+      "asset_type": "Savings/Cash",
+      "invested_amount": 2000.0,
+      "current_value": 2000.0,
+      "institution": "Grow",
+      "category": "Mutual Funds",
+      "tenant_id": null
+    },
+    {
+      "id": 6,
+      "name": "Nifty 50 Index Fund",
+      "asset_type": null,
+      "invested_amount": null,
+      "current_value": 45000.0,
+      "institution": null,
+      "category": "Equity",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 7,
+      "name": "Gold ETF",
+      "asset_type": null,
+      "invested_amount": 18000.0,
+      "current_value": 20000.0,
+      "institution": null,
+      "category": "Commodities",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 8,
+      "name": "UTI Nifty 50 Index Fund",
+      "asset_type": null,
+      "invested_amount": 150000.0,
+      "current_value": 182500.0,
+      "institution": null,
+      "category": "Mutual Funds",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 9,
+      "name": "Parag Parikh Flexi Cap Fund",
+      "asset_type": null,
+      "invested_amount": 120000.0,
+      "current_value": 154000.0,
+      "institution": null,
+      "category": "Mutual Funds",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 10,
+      "name": "Sovereign Gold Bonds",
+      "asset_type": null,
+      "invested_amount": 75000.0,
+      "current_value": 92000.0,
+      "institution": null,
+      "category": "Gold & Commodities",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 11,
+      "name": "HDFC Fixed Deposit",
+      "asset_type": null,
+      "invested_amount": 100000.0,
+      "current_value": 107500.0,
+      "institution": null,
+      "category": "Fixed Deposit",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 12,
+      "name": "Parag parigh Flexi cap fund",
+      "asset_type": null,
+      "invested_amount": 10000.0,
+      "current_value": 12000.0,
+      "institution": null,
+      "category": "Mutual Funds",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    }
+  ],
+  "goals": [
+    {
+      "id": 1,
+      "name": "6-Month Emergency Fund",
+      "target_amount": 18000.0,
+      "current_amount": 15000.0,
+      "target_date": "2026-12-31",
+      "category": "Short-Term",
+      "tenant_id": null
+    },
+    {
+      "id": 2,
+      "name": "Europe Summer Vacation",
+      "target_amount": 5000.0,
+      "current_amount": 2200.0,
+      "target_date": "2027-06-30",
+      "category": "Medium-Term",
+      "tenant_id": null
+    },
+    {
+      "id": 3,
+      "name": "New Vehicle Down Payment",
+      "target_amount": 12000.0,
+      "current_amount": 4500.0,
+      "target_date": "2027-12-31",
+      "category": "Medium-Term",
+      "tenant_id": null
+    },
+    {
+      "id": 4,
+      "name": "New villa in Chennai",
+      "target_amount": 5000.0,
+      "current_amount": 1000.0,
+      "target_date": "2026-09-03",
+      "category": "Custom",
+      "tenant_id": null
+    },
+    {
+      "id": 5,
+      "name": "Buy a BMW",
+      "target_amount": 5000.0,
+      "current_amount": 1400.0,
+      "target_date": "2026-09-03",
+      "category": "Custom",
+      "tenant_id": null
+    },
+    {
+      "id": 6,
+      "name": "Vacation 2027",
+      "target_amount": 120000.0,
+      "current_amount": 30000.0,
+      "target_date": "2027-06-01",
+      "category": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 7,
+      "name": "Retirement Corpus",
+      "target_amount": 25000000.0,
+      "current_amount": 1500000.0,
+      "target_date": "2040-12-31",
+      "category": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 8,
+      "name": "Emergency Buffer (6 Months)",
+      "target_amount": 600000.0,
+      "current_amount": 450000.0,
+      "target_date": "2026-12-31",
+      "category": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 9,
+      "name": "European Vacation",
+      "target_amount": 350000.0,
+      "current_amount": 210000.0,
+      "target_date": "2027-05-15",
+      "category": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    }
+  ],
+  "credit_scores": [
+    {
+      "id": 1,
+      "date": "2026-03-01",
+      "score": 742,
+      "agency": "CIBIL / Experian",
+      "remarks": "Baseline quarterly review",
+      "rating": "Excellent",
+      "tenant_id": null
+    },
+    {
+      "id": 2,
+      "date": "2026-05-01",
+      "score": 758,
+      "agency": "CIBIL / Experian",
+      "remarks": "Lower credit card balance",
+      "rating": "Excellent",
+      "tenant_id": null
+    },
+    {
+      "id": 3,
+      "date": "2026-07-01",
+      "score": 769,
+      "agency": "CIBIL / Experian",
+      "remarks": "Consistent on-time loan EMI payment",
+      "rating": "Excellent",
+      "tenant_id": null
+    },
+    {
+      "id": 4,
+      "date": "2026-09-01",
+      "score": 785,
+      "agency": "CIBIL / Experian",
+      "remarks": "Zero late marks, healthy credit mix",
+      "rating": "Excellent",
+      "tenant_id": null
+    },
+    {
+      "id": 5,
+      "date": "2026-09-09",
+      "score": 795,
+      "agency": null,
+      "remarks": null,
+      "rating": "Excellent",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 6,
+      "date": "2026-09-09",
+      "score": 780,
+      "agency": "Experian",
+      "remarks": null,
+      "rating": "Excellent",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    }
+  ],
+  "profile": [
+    {
+      "id": 1,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "key": "currency",
+      "value": "INR"
+    },
+    {
+      "id": 2,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "key": "dismissed_anomalies",
+      "value": "[\"creep-spotify premium-36\"]"
+    },
+    {
+      "id": 3,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "key": "preferred_currency",
+      "value": "INR"
+    }
+  ],
+  "incomes": [
+    {
+      "id": 2,
+      "date": "2026-09-09",
+      "category": "Freelance",
+      "amount": 15000.0,
+      "account": "ICICI Savings Account",
+      "description": null,
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 3,
+      "date": "2026-04-01",
+      "category": "Salary",
+      "amount": 120000.0,
+      "account": "HDFC Salary Account",
+      "description": "Monthly Salary",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 4,
+      "date": "2026-05-01",
+      "category": "Salary",
+      "amount": 120000.0,
+      "account": "HDFC Salary Account",
+      "description": "Monthly Salary",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 5,
+      "date": "2026-06-01",
+      "category": "Salary",
+      "amount": 120000.0,
+      "account": "HDFC Salary Account",
+      "description": "Monthly Salary",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 6,
+      "date": "2026-07-01",
+      "category": "Salary",
+      "amount": 120000.0,
+      "account": "HDFC Salary Account",
+      "description": "Monthly Salary",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 7,
+      "date": "2026-08-01",
+      "category": "Salary",
+      "amount": 120000.0,
+      "account": "HDFC Salary Account",
+      "description": "Monthly Salary",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 8,
+      "date": "2026-09-01",
+      "category": "Salary",
+      "amount": 125000.0,
+      "account": "HDFC Salary Account",
+      "description": "Monthly Salary",
+      "remarks": null,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 9,
+      "date": "2026-09-01",
+      "category": "Other Income",
+      "amount": 250000.0,
+      "account": "ICICI Savings Account",
+      "description": "RTGS-TNSCR52026090101225588-MR  P SUBARAMANIYAN-00000000708007571-TNSC0012200",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 10,
+      "date": "2026-09-02",
+      "category": "Other Income",
+      "amount": 12000.0,
+      "account": "ICICI Savings Account",
+      "description": "UPI/KANIMALAR/9087029052@sup/Paid via S/AXIS BANK/661174592850/SMY2412130742BTOK8M6OFOAI411B8EHF2V",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 11,
+      "date": "2026-09-05",
+      "category": "Other Income",
+      "amount": 612.0,
+      "account": "ICICI Savings Account",
+      "description": "UPI/Pugalendhi/pugalk22-",
+      "remarks": "Auto-imported from ICICI statement",
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    }
+  ],
+  "accounts": [
+    {
+      "id": 1,
+      "name": "Main Checking",
+      "account_type": "Bank Account",
+      "initial_balance": 50000.0,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 2,
+      "name": "HDFC Salary Account",
+      "account_type": "Bank Account",
+      "initial_balance": 125000.0,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    },
+    {
+      "id": 3,
+      "name": "ICICI Savings Account",
+      "account_type": "Bank Account",
+      "initial_balance": 85000.0,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733"
+    }
+  ],
+  "balance_adjustments": [],
+  "autonomous_action_logs": [
+    {
+      "id": 1,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "created_at": "2026-09-10 13:24:42",
+      "rule_type": "auto_sweep",
+      "action_type": "simulated_transfer",
+      "title": "Auto-Sweep Opportunity: ₹717,149 Available",
+      "message": "Surplus liquidity of ₹717,149 detected above your ₹50,000 safety cushion. Autonomous sweep can transfer ₹717,149 into 'Emergency Cushion Fund' to generate ~₹50,918/yr in liquid yield.",
+      "amount": 717149.38,
+      "status": "active"
+    },
+    {
+      "id": 2,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "created_at": "2026-09-10 13:24:42",
+      "rule_type": "budget_guardrail",
+      "action_type": "alert",
+      "title": "Red Guardrail: Category 'Transport & Fuel' Exceeded",
+      "message": "🚨 Spent ₹7,400 of ₹5,000 limit (148%). Breached by ₹2,400! At current run-rate, projected month total is ₹22,200.",
+      "amount": 7400.0,
+      "status": "active"
+    },
+    {
+      "id": 3,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "created_at": "2026-09-10 13:24:42",
+      "rule_type": "round_up",
+      "action_type": "recommendation",
+      "title": "Micro-Savings Milestone: ₹1,236 Accumulated",
+      "message": "Accumulated ₹1,236 in spare change across 46 transactions (rounded to ₹50). Projected to compound into ₹14,837 in 1 year and ₹96,539 in 5 years.",
+      "amount": 1236.38,
+      "status": "active"
+    },
+    {
+      "id": 10,
+      "tenant_id": "17413208-c76f-4f9e-9e05-ccdc7a0a97d0",
+      "created_at": "2026-09-11",
+      "rule_type": "cashflow_guardian",
+      "action_type": "alert",
+      "title": "🚨 Critical Overdraft Alert",
+      "message": "Committed dues of ₹2,500 over the next 14 days will deplete your liquid cash, pushing projected balance into overdraft (-₹2,500).",
+      "amount": 27500.0,
+      "status": "active"
+    }
+  ],
+  "subscriptions": [
+    {
+      "id": 1,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "razorpay_customer_id": "cust_TZpbPZH0IQegHo",
+      "razorpay_subscription_id": "sub_TZztD1JAAI6Olq",
+      "plan_id": "plan_TZpfUpFqWIJvu1",
+      "status": "active"
+    }
+  ],
+  "budgets": [
+    {
+      "id": 1,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "category": "Food",
+      "monthly_limit": 5000.0
+    },
+    {
+      "id": 2,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "category": "Transport",
+      "monthly_limit": 5000.0
+    },
+    {
+      "id": 3,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "category": "Transport & Fuel",
+      "monthly_limit": 5000.0
+    },
+    {
+      "id": 4,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "category": "Subscriptions",
+      "monthly_limit": 5000.0
+    }
+  ],
+  "tax_profiles": [
+    {
+      "id": 1,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "financial_year": "2024-2025",
+      "gross_salary": 1418630.0,
+      "basic_salary": 0.0,
+      "hra_received": 240000.0,
+      "rent_paid": 240000.0,
+      "is_metro": true,
+      "section_80c": 0.0,
+      "section_80d_self": 25000.0,
+      "section_80d_parents": 25000.0,
+      "parents_senior_citizen": false,
+      "section_80ccd_1b": 50000.0,
+      "section_24b": 0.0,
+      "other_deductions": 0.0,
+      "preferred_regime": "new"
+    }
+  ],
+  "users": [
+    {
+      "id": "17413208-c76f-4f9e-9e05-ccdc7a0a97d0",
+      "email": "whatsapp_test@advisor.ai",
+      "hashed_password": "test_hash_password",
+      "telegram_chat_id": "112233445",
+      "is_active": true,
+      "whatsapp_phone_number": "919988776655",
+      "notification_channel": "whatsapp",
+      "preferred_briefing_time": "09:00",
+      "telegram_link_token": null
+    },
+    {
+      "id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "email": "tamildestructor@gmail.com",
+      "hashed_password": "$argon2id$v=19$m=65536,t=3,p=4$dW7t3ZszxliLMWZMqbWW0g$qUM8quvYQO9+XQTxZWyxCEmblnGYD0EobbSdRGhhs2E",
+      "telegram_chat_id": "1337672874",
+      "is_active": true,
+      "whatsapp_phone_number": "918012808413",
+      "notification_channel": "both",
+      "preferred_briefing_time": "08:00",
+      "telegram_link_token": null
+    }
+  ],
+  "autonomous_rules": [
+    {
+      "id": 1,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "rule_type": "auto_sweep",
+      "is_enabled": true,
+      "config_json": "{\"is_enabled\": true, \"buffer_threshold\": 50000.0, \"target_destination\": \"Emergency Cushion Fund\", \"expected_yield_pct\": 7.1}"
+    },
+    {
+      "id": 2,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "rule_type": "budget_guardrail",
+      "is_enabled": true,
+      "config_json": "{\"is_enabled\": true, \"warning_threshold_pct\": 80.0, \"critical_threshold_pct\": 100.0}"
+    },
+    {
+      "id": 3,
+      "tenant_id": "5629805e-3cef-498f-9c35-fa69840dc733",
+      "rule_type": "round_up",
+      "is_enabled": true,
+      "config_json": "{\"is_enabled\": true, \"round_up_step\": 50.0, \"target_goal\": \"Micro-Savings Jar\"}"
+    }
+  ]
+}
