@@ -2,3 +2,9 @@
 __pycache__/
 venv/
 .env
+scratch/
+backups/
+dummy_statement.csv
+test_db.py
+frontend/AGENTS.md
+frontend/CLAUDE.md
