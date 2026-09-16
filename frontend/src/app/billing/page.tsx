@@ -51,6 +51,12 @@ export default function BillingPage() {
       
       const subData = await subRes.json();
       
+      if (subData.status === "active") {
+        router.push("/dashboard");
+        router.refresh();
+        return;
+      }
+
       // 4. Open Checkout
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID, // Enter the Key ID generated from the Dashboard
