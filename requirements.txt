@@ -17,4 +17,4 @@ argon2-cffi
 python-multipart
 razorpay
 pypdf>=5.0.0
-apscheduler
+alembic
