@@ -8,6 +8,9 @@ This guide covers deploying the AI Advisor application using a decoupled archite
 
 Render uses an Infrastructure-as-Code approach via the `render.yaml` Blueprint file at the root of the repository.
 
+> [!WARNING]
+> **SaaS Scaling Warning**: The backend runs an in-memory `BackgroundScheduler` in the FastAPI `lifespan` hook. **Do NOT scale the Render Web Service to multiple instances.** If you run more than 1 instance, the scheduled jobs (like the 8 AM daily pulse) will trigger multiple times. Keep it at 1 instance until a distributed job queue (like Celery/Redis) is implemented.
+
 ### Steps to Deploy on Render
 
 1. **Push Changes to GitHub**: Ensure the `render.yaml` and `database.py` (which includes the PostgreSQL URL fix) are committed and pushed to your GitHub repository.
@@ -21,12 +24,19 @@ Render uses an Infrastructure-as-Code approach via the `render.yaml` Blueprint f
    - In the Render Dashboard, go to your **ai-advisor-backend** service.
    - Click on the **Environment** tab.
    - The `DATABASE_URL` and `PYTHON_VERSION` are automatically injected by the Blueprint.
-   - **Manual Action Required**: Add any other required production backend environment variables here, such as:
-     - `RAZORPAY_KEY_ID` (Live Key)
-     - `RAZORPAY_KEY_SECRET` (Live Secret)
-     - `SECRET_KEY` / `JWT_SECRET` (For authentication)
-     - Any other API keys (e.g., Telegram, OpenAI).
-5. **Verify Backend**: Once deployed, the service URL will be available on the Render dashboard (e.g., `https://ai-advisor-backend.onrender.com`). Visit this URL (or the `/docs` endpoint) to ensure the FastAPI server is running.
+   
+   > [!IMPORTANT]
+   > **Manual Action Required**: For the new SaaS implementation, you MUST add these variables:
+   > - `TELEGRAM_WEBHOOK_URL`: E.g., `https://ai-advisor-backend.onrender.com/api/v1/webhook/telegram`. **This is crucial to disable the local background poller in production.**
+   > - `TELEGRAM_BOT_TOKEN`: Your live Telegram bot token.
+   > - `WHATSAPP_PROVIDER`: `meta` or `twilio`.
+   > - `WHATSAPP_PHONE_NUMBER_ID` & `WHATSAPP_ACCESS_TOKEN` (or equivalent for Twilio).
+   > - `RAZORPAY_KEY_ID` & `RAZORPAY_KEY_SECRET`: Live keys for SaaS billing.
+   > - `JWT_SECRET`: A strong secret for user authentication.
+   > - `BACKEND_CORS_ORIGINS`: `["https://your-vercel-domain.vercel.app"]`
+   
+5. **Database Migrations**: The `alembic upgrade head` pre-deploy command in `render.yaml` will automatically apply the new SaaS database schema migrations (Users, Subscriptions, etc.) during deployment.
+6. **Verify Backend**: Once deployed, the service URL will be available on the Render dashboard (e.g., `https://ai-advisor-backend.onrender.com`).
 
 ---
 
@@ -49,17 +59,8 @@ The Next.js frontend relies on `NEXT_PUBLIC_API_URL` to route API requests to th
      - **Key**: `NEXT_PUBLIC_API_URL`
      - **Value**: Your Render backend URL (e.g., `https://ai-advisor-backend.onrender.com`).
      - *Note: Do NOT include a trailing slash in the URL.*
-   - Add any other frontend-specific environment variables you have in your `.env.production.example`.
 5. **Deploy**:
    - Click **Deploy**. Vercel will build and deploy the frontend.
 6. **Verify Proxy**:
    - Once deployed, visit your Vercel URL (e.g., `https://your-project.vercel.app`).
    - Test login/API calls to ensure they are successfully proxied to the Render backend and cookies are set properly.
-
----
-
-## Summary of Changes Made
-
-1. **`render.yaml`**: Created at the project root to define the database and backend service, including deployment commands (`alembic upgrade head`) and start commands.
-2. **`next.config.ts`**: Updated to proxy frontend `/api/v1/:path*` requests to `NEXT_PUBLIC_API_URL` to prevent cross-origin cookie issues.
-3. **`database.py`**: Validated that it already replaces `postgres://` with `postgresql://` for SQLAlchemy 1.4+ compatibility.
