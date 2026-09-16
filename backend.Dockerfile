@@ -36,5 +36,5 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # Command to run prestart script and then start the server
-# Gunicorn is recommended for production, but uvicorn with workers is also fine.
-CMD ["sh", "-c", "./prestart.sh && uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4"]
+# WARNING: Do NOT use multiple workers (--workers 4) because APScheduler runs in-memory and will duplicate jobs!
+CMD ["sh", "-c", "./prestart.sh && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
