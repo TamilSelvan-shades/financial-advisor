@@ -2971,7 +2971,7 @@ async def telegram_webhook(
             user = db.query(models.User).filter(models.User.telegram_chat_id == sender_id).first()
 
             # Auto-link if /start provided
-            if not user and text.strip().startswith("/start"):
+            if text.strip().startswith("/start"):
                 parts = text.strip().split()
                 target_user = None
                 if len(parts) > 1:
@@ -2987,6 +2987,11 @@ async def telegram_webhook(
                     )
 
                 if target_user:
+                    # Clear it from any existing user to prevent UniqueViolation when swapping accounts
+                    existing_user = db.query(models.User).filter(models.User.telegram_chat_id == sender_id).first()
+                    if existing_user and existing_user.id != target_user.id:
+                        existing_user.telegram_chat_id = None
+                        
                     target_user.telegram_chat_id = sender_id
                     target_user.telegram_link_token = None
                     db.commit()
@@ -2995,7 +3000,7 @@ async def telegram_webhook(
                         text="🎉 *Telegram Connected Successfully!*\n\nYour account is now linked to your Personal AI Financial Advisor. You'll receive your 8:00 AM Morning Pulse and due reminders right here.",
                     )
                     return {"status": "linked"}
-                else:
+                elif not user:
                     send_telegram_alert(
                         f"👋 Hello! Your Telegram Chat ID is: `{sender_id}`\n\n"
                         "To link your account, either:\n"
