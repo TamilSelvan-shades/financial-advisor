@@ -62,6 +62,7 @@ export default function NotificationChannelModal({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generatingLink, setGeneratingLink] = useState(false);
+  const [telegramToken, setTelegramToken] = useState<string | null>(null);
   const [testingWhatsapp, setTestingWhatsapp] = useState(false);
   const [testingTelegram, setTestingTelegram] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -186,6 +187,8 @@ export default function NotificationChannelModal({
       if (res.ok) {
         const data = await res.json();
         if (data.link) {
+          const extractedToken = data.link.split('start=')[1];
+          if (extractedToken) setTelegramToken(extractedToken);
           window.open(data.link, "_blank");
           setFeedback({
             type: "success",
@@ -208,6 +211,8 @@ export default function NotificationChannelModal({
       if (res.ok) {
         const data = await res.json();
         if (data.link) {
+          const extractedToken = data.link.split('start=')[1];
+          if (extractedToken) setTelegramToken(extractedToken);
           await navigator.clipboard.writeText(data.link);
           setCopiedLink(true);
           setTimeout(() => setCopiedLink(false), 3000);
@@ -666,6 +671,27 @@ export default function NotificationChannelModal({
                       <Clock size={11} className="text-sky-600" />
                       <span>This window automatically detects your connection in real-time once you tap Start.</span>
                     </div>
+
+                    {telegramToken && (
+                      <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
+                        <div className="flex items-start gap-2">
+                          <Info size={14} className="text-amber-600 mt-0.5 shrink-0" />
+                          <div className="space-y-1.5">
+                            <p className="text-[11px] text-amber-800 font-medium">
+                              Button not working? (No Telegram App installed)
+                            </p>
+                            <p className="text-[10px] text-amber-700">
+                              Open Telegram Web in your browser, find <strong>@tamil_finance_agent_bot</strong>, and send this exact message:
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <code className="px-2 py-1 bg-white rounded border border-amber-300 text-[11px] font-mono text-slate-700 select-all">
+                                /start {telegramToken}
+                              </code>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="pt-2 border-t border-sky-100 flex flex-col gap-2">
                       <button
