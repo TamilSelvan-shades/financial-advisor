@@ -2,15 +2,18 @@
 
 import { useState } from "react";
 import { login } from "@/app/actions/auth";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isRegistered = searchParams.get("registered") === "true";
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -41,6 +44,11 @@ export default function LoginPage() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {isRegistered && !error && (
+              <div className="bg-emerald-500/15 text-emerald-700 text-sm p-3 rounded-md border border-emerald-200">
+                Registration successful! Please login to continue.
+              </div>
+            )}
             {error && (
               <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">
                 {error}
@@ -69,5 +77,13 @@ export default function LoginPage() {
         </form>
       </Card>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

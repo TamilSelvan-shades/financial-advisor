@@ -29,10 +29,12 @@ import {
   Calculator,
   FileText,
   X,
+  User,
 } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import { usePrivacy } from "@/context/privacy-context";
 import { useCurrency } from "@/context/currency-context";
+import { fetchWithAuthClient } from "@/lib/api-client";
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
@@ -40,6 +42,7 @@ export default function DashboardSidebar() {
   const activeTabParam = searchParams.get("tab") || "monthly";
   const { isPrivate, togglePrivacy } = usePrivacy();
   const { currency, currencyMeta } = useCurrency();
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   // Auto-expand Expenses sub-menu if currently on /expenses
   const isExpensesRoute = pathname === "/expenses";
@@ -71,6 +74,21 @@ export default function DashboardSidebar() {
       window.removeEventListener("closeMobileSidebar", handleClose);
       mediaQuery.removeEventListener("change", handleMediaChange);
     };
+  }, []);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await fetchWithAuthClient("/api/v1/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          setUserEmail(data.email);
+        }
+      } catch (err) {
+        console.error("Failed to fetch user profile", err);
+      }
+    };
+    fetchUser();
   }, []);
 
   const navItems = [
@@ -278,6 +296,19 @@ export default function DashboardSidebar() {
             {isPrivate ? "Active" : "Off"}
           </span>
         </button>
+
+        {/* User Profile Info */}
+        {userEmail && (
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-slate-800/40 border border-slate-800/80">
+            <div className="h-7 w-7 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+              <User size={14} />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Logged in as</span>
+              <span className="text-xs font-medium text-slate-200 truncate">{userEmail}</span>
+            </div>
+          </div>
+        )}
 
         {/* Sign Out */}
         <form

@@ -26,18 +26,8 @@ export default function RegisterPage() {
       setError(result.error);
       setLoading(false);
     } else {
-      // Auto-login after registration
-      const loginFormData = new FormData();
-      loginFormData.append("username", formData.get("email") as string);
-      loginFormData.append("password", formData.get("password") as string);
-      
-      const loginResult = await login(loginFormData);
-      if (loginResult.error) {
-        // If login fails, redirect to login page
-        router.push("/login");
-      } else {
-        router.push("/dashboard");
-      }
+      // Auto-login removed. Redirect to login to continue to billing.
+      router.push("/login?registered=true");
     }
   }
 
