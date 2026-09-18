@@ -274,4 +274,11 @@ class TestNotificationRequest(BaseModel):
     channel: str = "whatsapp"  # "whatsapp" or "telegram"
     recipient: Optional[str] = None
 
-
+class TelegramAuthPayload(BaseModel):
+    id: int
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    username: Optional[str] = None
+    photo_url: Optional[str] = None
+    auth_date: int
+    hash: str
