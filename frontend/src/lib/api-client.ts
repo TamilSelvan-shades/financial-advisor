@@ -31,10 +31,20 @@ export async function fetchWithAuthClient(
   // Use relative endpoint if running in browser to leverage same-origin proxy rewrite
   const url = endpoint.startsWith("http") ? endpoint : endpoint;
 
-  return fetch(url, {
+  const res = await fetch(url, {
     cache: "no-store",
     credentials: "include",
     ...options,
     headers,
   });
+
+  // Automatically log out if the backend rejects the token (e.g. wiped database)
+  if (res.status === 401) {
+    if (typeof document !== "undefined") {
+      document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      window.location.href = "/login";
+    }
+  }
+
+  return res;
 }
