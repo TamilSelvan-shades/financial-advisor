@@ -1843,8 +1843,8 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
                           value={budgetLimitInput}
                           onChange={(e) => setBudgetLimitInput(e.target.value)}
                           type="number"
-                          step="100"
-                          min="1"
+                          step="any"
+                          min="0"
                           required
                           className="w-full h-10 px-3.5 border border-slate-300 rounded-xl bg-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-bold"
                         />
