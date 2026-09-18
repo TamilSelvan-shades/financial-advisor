@@ -8,8 +8,6 @@ if sys.platform == "win32":
 
 from contextlib import asynccontextmanager
 import datetime
-import hashlib
-import hmac
 import json
 import os
 import threading
@@ -3170,49 +3168,19 @@ def update_notification_preferences(
     )
 
 
-@app.post("/api/v1/notifications/telegram-auth", tags=["Notifications"])
-def verify_telegram_auth(
-    payload: schemas.TelegramAuthPayload,
+@app.post("/api/v1/notifications/generate-telegram-link", tags=["Notifications"])
+def generate_telegram_link(
     current_user: models.User = Depends(dependencies.get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Verifies Telegram Login Widget payload and links the account."""
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-    if not bot_token:
-        raise HTTPException(status_code=500, detail="Bot token not configured")
-
-    # 1. Verify Hash
-    data = payload.dict(exclude={"hash"}, exclude_none=True)
-    data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted(data.items())])
-    secret_key = hashlib.sha256(bot_token.encode()).digest()
-    expected_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-
-    if expected_hash != payload.hash:
-        raise HTTPException(status_code=401, detail="Invalid Telegram authentication hash")
-
-    # 2. Check for expiration (optional, e.g., 24 hours)
-    import time
-    if time.time() - payload.auth_date > 86400:
-        raise HTTPException(status_code=401, detail="Authentication data expired")
-
-    # 3. Link account
-    sender_id = str(payload.id)
-    
-    # Clear from any existing user to prevent UniqueViolation
-    existing_user = db.query(models.User).filter(models.User.telegram_chat_id == sender_id).first()
-    if existing_user and existing_user.id != current_user.id:
-        existing_user.telegram_chat_id = None
-        
-    current_user.telegram_chat_id = sender_id
+    """Generates a secure deep-linking token for 1-click Telegram bot association."""
+    token = str(uuid.uuid4())[:8]
+    current_user.telegram_link_token = token
     db.commit()
 
-    # 4. Dispatch Welcome Message (Allowed because widget requests write access)
-    notification_dispatcher.send_telegram_alert_direct(
-        chat_id=sender_id,
-        text="🎉 *Telegram Connected Successfully!*\n\nYour account is now securely linked via Telegram Login. You'll receive your Morning Pulse and alerts right here.",
-    )
-
-    return {"status": "linked"}
+    bot_username = os.getenv("TELEGRAM_BOT_USERNAME", "tamil_finance_agent_bot").replace("@", "")
+    deep_link = f"https://t.me/{bot_username}?start={token}"
+    return {"link": deep_link, "token": token, "bot_username": bot_username}
 
 
 @app.post("/api/v1/notifications/test-whatsapp", tags=["Notifications"])

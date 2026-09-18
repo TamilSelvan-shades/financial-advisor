@@ -38,32 +38,6 @@ interface NotificationChannelModalProps {
   onSaved?: () => void;
 }
 
-const TelegramLoginWidget = ({ botName, onAuth }: { botName: string; onAuth: (user: any) => void }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    // Add global callback
-    (window as any).onTelegramAuth = (user: any) => {
-      onAuth(user);
-    };
-
-    if (containerRef.current) {
-      // Clear existing script if any
-      containerRef.current.innerHTML = "";
-      const script = document.createElement("script");
-      script.src = "https://telegram.org/js/telegram-widget.js?22";
-      script.setAttribute("data-telegram-login", botName);
-      script.setAttribute("data-size", "large");
-      script.setAttribute("data-onauth", "onTelegramAuth(user)");
-      script.setAttribute("data-request-access", "write");
-      script.async = true;
-      containerRef.current.appendChild(script);
-    }
-  }, [botName, onAuth]);
-
-  return <div ref={containerRef} className="flex justify-start"></div>;
-};
-
 export default function NotificationChannelModal({
   isOpen,
   onClose,
@@ -87,6 +61,7 @@ export default function NotificationChannelModal({
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [generatingLink, setGeneratingLink] = useState(false);
   const [testingWhatsapp, setTestingWhatsapp] = useState(false);
   const [testingTelegram, setTestingTelegram] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -201,28 +176,44 @@ export default function NotificationChannelModal({
     }
   };
 
-  const handleTelegramAuth = async (user: any) => {
-    setLoading(true);
+  const handleGenerateTelegramLink = async () => {
+    setGeneratingLink(true);
     setFeedback(null);
     try {
-      const res = await fetchWithAuthClient("/api/v1/notifications/telegram-auth", {
+      const res = await fetchWithAuthClient("/api/v1/notifications/generate-telegram-link", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(user),
       });
-
       if (res.ok) {
-        setFeedback({ type: "success", text: "Telegram linked successfully! You will receive a welcome message." });
-        loadPreferences(); // Refresh UI state
-      } else {
         const data = await res.json();
-        setFeedback({ type: "error", text: data.detail || "Failed to link Telegram." });
+        if (data.link) {
+          window.open(data.link, "_blank");
+          setFeedback({
+            type: "success",
+            text: "Opening Telegram! Tap 'Start' on Telegram to link your account.",
+          });
+        }
       }
     } catch (err: any) {
-      setFeedback({ type: "error", text: "Network error during Telegram linking." });
+      setFeedback({ type: "error", text: "Could not generate Telegram link." });
     } finally {
-      setLoading(false);
+      setGeneratingLink(false);
     }
+  };
+
+  const handleCopyTelegramLink = async () => {
+    try {
+      const res = await fetchWithAuthClient("/api/v1/notifications/generate-telegram-link", {
+        method: "POST",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.link) {
+          await navigator.clipboard.writeText(data.link);
+          setCopiedLink(true);
+          setTimeout(() => setCopiedLink(false), 3000);
+        }
+      }
+    } catch (_) {}
   };
 
   const handleTestWhatsapp = async () => {
@@ -635,11 +626,41 @@ export default function NotificationChannelModal({
                     <p className="text-xs text-slate-600">
                       Link your personal Telegram account in 1 click. Tap the button below, then click <strong>&quot;Start&quot;</strong> in Telegram to auto-link.
                     </p>
-                    <div className="flex flex-wrap items-center gap-2 mt-2">
-                      <TelegramLoginWidget 
-                        botName="tamil_finance_agent_bot" 
-                        onAuth={handleTelegramAuth} 
-                      />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={handleGenerateTelegramLink}
+                        disabled={generatingLink}
+                        className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer shadow-xs"
+                      >
+                        {generatingLink ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            <span>Generating Link...</span>
+                          </>
+                        ) : (
+                          <>
+                            <ExternalLink size={13} />
+                            <span>Open Telegram Bot (1-Click)</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        onClick={handleCopyTelegramLink}
+                        className="px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                      >
+                        {copiedLink ? (
+                          <>
+                            <Check size={13} className="text-emerald-600" />
+                            <span>Link Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={13} className="text-slate-500" />
+                            <span>Copy Link</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                     <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                       <Clock size={11} className="text-sky-600" />
