@@ -34,10 +34,32 @@ def generate_financial_alert():
     all_bills = db.query(models.Bill).all()
     upcoming_bills = []
     for b in all_bills:
-        days_away = b.due_day - current_day
-        if 0 <= days_away <= 7 and b.status != "Paid":
+        if b.status == "Paid":
+            continue
+            
+        days_away = -1
+        if b.frequency in ["Yearly", "One-Time"] and b.next_due_date:
+            try:
+                # Calculate based on full date string YYYY-MM-DD
+                due_dt = datetime.datetime.strptime(b.next_due_date, "%Y-%m-%d").date()
+                
+                # For yearly, if the due_dt year is in the past, assume it rolls over to current year
+                if b.frequency == "Yearly" and due_dt < today:
+                    due_dt = due_dt.replace(year=today.year)
+                    if due_dt < today:
+                        due_dt = due_dt.replace(year=today.year + 1)
+                        
+                days_away = (due_dt - today).days
+            except Exception:
+                # Fallback to monthly logic if date parse fails
+                days_away = b.due_day - current_day
+        else:
+            # Default Monthly logic
+            days_away = b.due_day - current_day
+            
+        if 0 <= days_away <= 7:
             due_label = "TODAY" if days_away == 0 else f"in {days_away} days"
-            upcoming_bills.append(f"• *{b.name}*: {format_amount(b.amount)} ({due_label})")
+            upcoming_bills.append(f"• *{b.name}* ({b.frequency}): {format_amount(b.amount)} ({due_label})")
 
     # 2. Check Over-Budget via ORM
     budgets = db.query(models.Budget).all()

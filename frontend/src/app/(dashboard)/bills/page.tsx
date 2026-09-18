@@ -49,6 +49,7 @@ export default function BillsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [formFrequency, setFormFrequency] = useState("Monthly");
   const [settlingId, setSettlingId] = useState<number | null>(null);
   const [acceptingRadarMerchant, setAcceptingRadarMerchant] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -80,28 +81,57 @@ export default function BillsPage() {
   }, []);
 
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const currentDay = today.getDate();
+
+  const getDaysUntilDue = (b: Bill) => {
+    if ((b.frequency === "Yearly" || b.frequency === "One-Time") && b.due_date) {
+      const due = new Date(b.due_date);
+      due.setHours(0, 0, 0, 0);
+      if (b.frequency === "Yearly") {
+        due.setFullYear(today.getFullYear());
+        if (due.getTime() < today.getTime()) {
+          due.setFullYear(today.getFullYear() + 1);
+        }
+      }
+      const diffTime = due.getTime() - today.getTime();
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
+    return (b.due_day || 1) - currentDay;
+  };
+
+  const renderDueLabel = (bill: Bill, context: "overdue" | "today" | "upcoming" | "settled", daysAway: number = 0) => {
+    if (bill.frequency === "Yearly" || bill.frequency === "One-Time") {
+      const dateStr = bill.due_date ? new Date(bill.due_date).toLocaleDateString() : "No date";
+      if (context === "overdue") return `${bill.frequency} • Was due on ${dateStr}`;
+      if (context === "today") return `${bill.frequency} • Due Today (${dateStr})`;
+      if (context === "upcoming") return `${bill.frequency} • ${dateStr} (in ${daysAway} days)`;
+      if (context === "settled") return `Settled • ${bill.frequency} (${dateStr})`;
+    }
+    if (context === "overdue") return `Due day was ${bill.due_day} of this month`;
+    if (context === "today") return `Due day ${bill.due_day} (Today)`;
+    if (context === "upcoming") return `Due day ${bill.due_day || 1} • in ${daysAway} days`;
+    if (context === "settled") return `Settled • Due day ${bill.due_day || 1}`;
+    return "";
+  };
 
   // Classify bills
   const overdueBills = bills.filter((b) => {
     const isPaid = b.status === "Paid" || b.is_paid;
-    const dueDay = b.due_day || 1;
-    return !isPaid && dueDay < currentDay;
+    return !isPaid && getDaysUntilDue(b) < 0;
   });
 
   const dueTodayBills = bills.filter((b) => {
     const isPaid = b.status === "Paid" || b.is_paid;
-    const dueDay = b.due_day || 1;
-    return !isPaid && dueDay === currentDay;
+    return !isPaid && getDaysUntilDue(b) === 0;
   });
 
   const upcomingBills = bills
     .filter((b) => {
       const isPaid = b.status === "Paid" || b.is_paid;
-      const dueDay = b.due_day || 1;
-      return !isPaid && dueDay > currentDay;
+      return !isPaid && getDaysUntilDue(b) > 0;
     })
-    .sort((a, b) => (a.due_day || 1) - (b.due_day || 1));
+    .sort((a, b) => getDaysUntilDue(a) - getDaysUntilDue(b));
 
   const paidBills = bills
     .filter((b) => b.status === "Paid" || b.is_paid)
@@ -114,7 +144,9 @@ export default function BillsPage() {
     const formData = new FormData(form);
     const name = formData.get("name") as string;
     const amount = parseFloat(formData.get("amount") as string);
-    const due_day = parseInt(formData.get("due_day") as string, 10);
+    const frequency = formData.get("frequency") as string;
+    const due_day = formData.get("due_day") ? parseInt(formData.get("due_day") as string, 10) : 1;
+    const due_date = formData.get("due_date") as string;
     const status = "Pending";
 
     if (isNaN(amount) || amount <= 0) {
@@ -127,7 +159,7 @@ export default function BillsPage() {
       const res = await fetchWithAuthClient("/api/v1/bills/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, amount, due_day, status }),
+        body: JSON.stringify({ name, amount, due_day, due_date, frequency, status }),
       });
       if (res.ok) {
         form.reset();
@@ -398,18 +430,44 @@ export default function BillsPage() {
                 className="w-full h-10 px-3 border rounded-lg bg-white text-sm"
               />
             </div>
-            <div className="space-y-1 flex-1 min-w-[150px]">
-              <label className="text-xs font-medium text-slate-700">Due Day of Month (1-28)</label>
-              <input
-                name="due_day"
-                type="number"
-                min="1"
-                max="28"
-                required
-                defaultValue="10"
+            <div className="space-y-1 flex-1 min-w-[120px]">
+              <label className="text-xs font-medium text-slate-700">Frequency</label>
+              <select
+                name="frequency"
+                value={formFrequency}
+                onChange={(e) => setFormFrequency(e.target.value)}
                 className="w-full h-10 px-3 border rounded-lg bg-white text-sm"
-              />
+              >
+                <option value="Monthly">Monthly</option>
+                <option value="Yearly">Yearly</option>
+                <option value="One-Time">One-Time</option>
+              </select>
             </div>
+            
+            {formFrequency === "Monthly" ? (
+              <div className="space-y-1 flex-1 min-w-[150px]">
+                <label className="text-xs font-medium text-slate-700">Due Day (1-28)</label>
+                <input
+                  name="due_day"
+                  type="number"
+                  min="1"
+                  max="28"
+                  required
+                  defaultValue="10"
+                  className="w-full h-10 px-3 border rounded-lg bg-white text-sm"
+                />
+              </div>
+            ) : (
+              <div className="space-y-1 flex-1 min-w-[150px]">
+                <label className="text-xs font-medium text-slate-700">Due Date</label>
+                <input
+                  name="due_date"
+                  type="date"
+                  required
+                  className="w-full h-10 px-3 border rounded-lg bg-white text-sm"
+                />
+              </div>
+            )}
             <button
               type="submit"
               disabled={submitting}
@@ -483,7 +541,7 @@ export default function BillsPage() {
                         <p className="font-bold text-sm text-slate-900 truncate">{bill.name}</p>
                       </div>
                       <p className="text-xs text-rose-700 mt-0.5">
-                        Due day was {bill.due_day} of this month
+                        {renderDueLabel(bill, "overdue")}
                       </p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
@@ -544,7 +602,7 @@ export default function BillsPage() {
                         </span>
                         <p className="font-bold text-sm text-slate-900 truncate">{bill.name}</p>
                       </div>
-                      <p className="text-xs text-amber-700">Due day {bill.due_day} (Today)</p>
+                      <p className="text-xs text-amber-700">{renderDueLabel(bill, "today")}</p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <span className="font-bold text-sm text-slate-900">
@@ -569,7 +627,7 @@ export default function BillsPage() {
                       <div className="min-w-0">
                         <p className="font-semibold text-sm text-slate-900 truncate">{bill.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          Due day {bill.due_day || 1} • in {daysAway} days
+                          {renderDueLabel(bill, "upcoming", daysAway)}
                         </p>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
@@ -618,8 +676,8 @@ export default function BillsPage() {
                 {paidBills.slice(0, 10).map((bill) => (
                   <div key={bill.id} className="py-3 flex justify-between items-center gap-4 opacity-75">
                     <div>
-                      <p className="font-semibold text-sm line-through text-slate-500">{bill.name}</p>
-                      <p className="text-xs text-muted-foreground">Settled • Due day {bill.due_day || 1}</p>
+                      <p className="text-sm font-medium text-slate-800 line-through">{bill.name}</p>
+                      <p className="text-xs text-muted-foreground">{renderDueLabel(bill, "settled")}</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="font-medium text-sm text-slate-600">

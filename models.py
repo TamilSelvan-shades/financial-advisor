@@ -159,6 +159,8 @@ class Bill(Base):
     name = Column(String)
     amount = Column(Float)
     due_day = Column(Integer)
+    next_due_date = Column(String, nullable=True)
+    frequency = Column(String, default="Monthly")
     status = Column(String, default="Pending")
 
     tenant = relationship("User", back_populates="bills")

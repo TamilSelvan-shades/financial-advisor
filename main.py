@@ -2163,6 +2163,8 @@ def create_bill(bill: schemas.BillCreate, db: Session = Depends(get_db), current
         name=bill.name,
         amount=float(bill.amount or 0.0),
         due_day=int(due_day or 1),
+        next_due_date=bill.due_date,
+        frequency=bill.frequency or "Monthly",
         status=bill.status or "Pending",
         tenant_id=current_user.id
     )
