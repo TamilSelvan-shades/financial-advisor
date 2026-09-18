@@ -251,7 +251,7 @@ export default function NotificationBell() {
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 sm:w-[420px] max-h-[85vh] flex flex-col rounded-2xl bg-white border border-slate-200 shadow-2xl ring-1 ring-black/10 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="fixed top-20 left-4 right-4 sm:absolute sm:top-auto sm:left-auto sm:right-0 sm:mt-2 sm:w-[420px] max-h-[85vh] flex flex-col rounded-2xl bg-white border border-slate-200 shadow-2xl ring-1 ring-black/10 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
           {/* Header */}
           <div className="p-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between shrink-0">
             <div>

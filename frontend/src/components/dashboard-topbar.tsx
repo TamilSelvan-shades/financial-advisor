@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Search, Eye, EyeOff, Sparkles, Activity } from "lucide-react";
+import { Search, Eye, EyeOff, Sparkles, Activity, Menu } from "lucide-react";
 import CurrencySelector from "@/components/currency-selector";
 import NotificationBell from "@/components/notification-bell";
 import { usePrivacy } from "@/context/privacy-context";
@@ -19,6 +19,14 @@ export default function DashboardTopBar() {
     <header className="relative z-40 flex items-center justify-between gap-3 mb-6 shrink-0 py-1.5 px-3 rounded-2xl bg-white/70 backdrop-blur-md border border-slate-200/80 shadow-xs">
       {/* Left: Brand Status Pill */}
       <div className="flex items-center gap-2.5">
+        {/* Mobile Hamburger Menu */}
+        <button
+          onClick={() => window.dispatchEvent(new Event("toggleMobileSidebar"))}
+          className="md:hidden p-2 -ml-1 text-slate-500 hover:text-slate-800 transition-colors bg-white/50 rounded-xl"
+        >
+          <Menu size={18} />
+        </button>
+
         <div className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-slate-700">
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>

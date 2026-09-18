@@ -28,6 +28,7 @@ import {
   EyeOff,
   Calculator,
   FileText,
+  X,
 } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import { usePrivacy } from "@/context/privacy-context";
@@ -43,12 +44,34 @@ export default function DashboardSidebar() {
   // Auto-expand Expenses sub-menu if currently on /expenses
   const isExpensesRoute = pathname === "/expenses";
   const [expensesExpanded, setExpensesExpanded] = useState(isExpensesRoute);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   useEffect(() => {
     if (isExpensesRoute) {
       setExpensesExpanded(true);
     }
   }, [isExpensesRoute]);
+
+  useEffect(() => {
+    const handleToggle = () => setIsMobileOpen((prev) => !prev);
+    const handleClose = () => setIsMobileOpen(false);
+
+    window.addEventListener("toggleMobileSidebar", handleToggle);
+    window.addEventListener("closeMobileSidebar", handleClose);
+
+    // Auto-close when screen becomes md or larger
+    const mediaQuery = window.matchMedia("(min-width: 768px)");
+    const handleMediaChange = (e: MediaQueryListEvent) => {
+      if (e.matches) setIsMobileOpen(false);
+    };
+    mediaQuery.addEventListener("change", handleMediaChange);
+
+    return () => {
+      window.removeEventListener("toggleMobileSidebar", handleToggle);
+      window.removeEventListener("closeMobileSidebar", handleClose);
+      mediaQuery.removeEventListener("change", handleMediaChange);
+    };
+  }, []);
 
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -78,21 +101,39 @@ export default function DashboardSidebar() {
   ];
 
   return (
-    <aside className="w-full md:w-68 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white p-5 flex flex-col border-r border-slate-800/80 shrink-0">
-      {/* Brand Header */}
-      <div className="mb-4 flex items-center gap-3 px-2">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-          <Sparkles className="text-white h-5 w-5" />
-        </div>
-        <div>
-          <div className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
-            AI Advisor
+    <>
+      {/* Mobile Overlay */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 md:hidden animate-in fade-in duration-200"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
+      <aside className={`fixed inset-y-0 left-0 z-50 w-[280px] bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white p-5 flex flex-col border-r border-slate-800/80 shrink-0 transform transition-transform duration-300 md:relative md:w-68 md:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        {/* Brand Header */}
+        <div className="mb-4 flex items-center justify-between px-2">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+              <Sparkles className="text-white h-5 w-5" />
+            </div>
+            <div>
+              <div className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+                AI Advisor
+              </div>
+              <div className="text-[10px] uppercase font-semibold tracking-wider text-indigo-400">
+                Enterprise Financials
+              </div>
+            </div>
           </div>
-          <div className="text-[10px] uppercase font-semibold tracking-wider text-indigo-400">
-            Enterprise Financials
-          </div>
+          {/* Mobile Close Button */}
+          <button 
+            className="md:hidden p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800/50"
+            onClick={() => setIsMobileOpen(false)}
+          >
+            <X size={18} />
+          </button>
         </div>
-      </div>
 
       {/* Quick Search & Command Palette Pill */}
       <button
@@ -137,6 +178,9 @@ export default function DashboardSidebar() {
                       if (!isExpensesRoute) {
                         setExpensesExpanded(true);
                       }
+                      if (window.innerWidth < 768) {
+                        setIsMobileOpen(false);
+                      }
                     }}
                   >
                     <Icon size={18} className={isMainActive ? "text-indigo-400" : "text-slate-400"} />
@@ -161,6 +205,11 @@ export default function DashboardSidebar() {
                         <Link
                           key={sub.href}
                           href={sub.href}
+                          onClick={() => {
+                            if (window.innerWidth < 768) {
+                              setIsMobileOpen(false);
+                            }
+                          }}
                           className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-all ${
                             isSubActive
                               ? "bg-indigo-600 text-white font-semibold shadow-sm shadow-indigo-600/30"
@@ -182,6 +231,11 @@ export default function DashboardSidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => {
+                if (window.innerWidth < 768) {
+                  setIsMobileOpen(false);
+                }
+              }}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
                 isMainActive
                   ? "bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-semibold shadow-md shadow-indigo-600/25"
@@ -240,6 +294,7 @@ export default function DashboardSidebar() {
           </button>
         </form>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

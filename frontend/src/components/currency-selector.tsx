@@ -46,7 +46,7 @@ export default function CurrencySelector({ className = "" }: { className?: strin
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-slate-950/95 backdrop-blur-xl border border-slate-800 shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="fixed top-20 right-4 sm:absolute sm:top-auto sm:right-0 sm:mt-2 w-[calc(100vw-2rem)] sm:w-64 rounded-2xl bg-slate-950/95 backdrop-blur-xl border border-slate-800 shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-slate-800 text-[11px] font-semibold text-slate-400 mb-1">
             <span className="flex items-center gap-1.5">
               <Globe size={13} className="text-indigo-400" />
