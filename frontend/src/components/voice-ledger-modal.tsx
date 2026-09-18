@@ -315,9 +315,14 @@ export default function VoiceLedgerModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors cursor-pointer"
+            disabled={isRecording || isProcessing}
+            className={`px-5 py-2 rounded-xl text-xs font-bold transition-colors ${
+              isRecording || isProcessing
+                ? "bg-slate-300 text-slate-500 cursor-not-allowed"
+                : "bg-slate-900 hover:bg-slate-800 text-white cursor-pointer"
+            }`}
           >
-            Done
+            {isProcessing ? "Processing..." : isRecording ? "Stop Recording First" : "Done"}
           </button>
         </div>
       </div>
