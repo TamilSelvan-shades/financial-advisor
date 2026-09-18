@@ -1123,12 +1123,13 @@ async def lifespan(app: FastAPI):
     if env_chat_id:
         db_boot = SessionLocal()
         try:
-            users_to_link = db_boot.query(models.User).filter(models.User.telegram_chat_id.is_(None)).all()
-            for u in users_to_link:
-                u.telegram_chat_id = env_chat_id
-                print(f"[Lifespan] Auto-linked user {u.email} to TELEGRAM_CHAT_ID {env_chat_id}")
-            if users_to_link:
-                db_boot.commit()
+            existing = db_boot.query(models.User).filter(models.User.telegram_chat_id == env_chat_id).first()
+            if not existing:
+                u = db_boot.query(models.User).filter(models.User.telegram_chat_id.is_(None)).order_by(models.User.id.asc()).first()
+                if u:
+                    u.telegram_chat_id = env_chat_id
+                    print(f"[Lifespan] Auto-linked user {u.email} to TELEGRAM_CHAT_ID {env_chat_id}")
+                    db_boot.commit()
         except Exception as e:
             print(f"[Lifespan] Auto-link warning: {e}")
         finally:
