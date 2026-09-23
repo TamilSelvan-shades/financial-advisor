@@ -80,19 +80,25 @@ def detect_bank_from_text(text: str) -> Tuple[str, str]:
     Detects bank name and extracts account/card number fragment if present.
     """
     t_upper = text.upper()
+    
+    banks = {
+        "HDFC Bank": ["HDFC BANK", "HDFC"],
+        "State Bank of India (SBI)": ["STATE BANK OF INDIA", "SBI"],
+        "Axis Bank": ["AXIS BANK"],
+        "Kotak Mahindra Bank": ["KOTAK MAHINDRA", "KOTAK BANK", "KOTAK"],
+        "ICICI Bank": ["ICICI BANK", "ICICI"],
+        "American Express (Amex)": ["AMERICAN EXPRESS", "AMEX"]
+    }
+    
     bank_name = "Generic"
-    if "HDFC BANK" in t_upper or "HDFC" in t_upper:
-        bank_name = "HDFC Bank"
-    elif "STATE BANK OF INDIA" in t_upper or "SBI" in t_upper:
-        bank_name = "State Bank of India (SBI)"
-    elif "AXIS BANK" in t_upper:
-        bank_name = "Axis Bank"
-    elif "KOTAK MAHINDRA" in t_upper or "KOTAK" in t_upper:
-        bank_name = "Kotak Mahindra Bank"
-    elif "ICICI BANK" in t_upper:
-        bank_name = "ICICI Bank"
-    elif "AMERICAN EXPRESS" in t_upper or "AMEX" in t_upper:
-        bank_name = "American Express (Amex)"
+    best_index = len(t_upper)
+    
+    for b_name, keywords in banks.items():
+        for kw in keywords:
+            idx = t_upper.find(kw)
+            if idx != -1 and idx < best_index:
+                best_index = idx
+                bank_name = b_name
 
     # Detect account number fragment
     acc_num_match = re.search(r"(?:account|a/c|card|acc)\s*(?:no\.?|number|#)?\s*[:\-]?\s*([xX*]*\d{4,})", text, re.IGNORECASE)
@@ -119,7 +125,7 @@ def parse_amount_str(amt_str: Any) -> float:
 
 def normalize_date(date_str: str) -> str:
     """Normalizes multiple date formats to YYYY-MM-DD."""
-    clean = date_str.strip().replace(",", "/")
+    clean = date_str.strip().replace(",", "/").replace(".", "/")
     for fmt in [
         "%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%d-%m-%y",
         "%d %b %Y", "%d-%b-%Y", "%d %B %Y", "%Y-%m-%d"
@@ -191,8 +197,8 @@ def parse_pdf_statement(file_bytes: bytes, password: Optional[str] = None) -> Di
     transactions = []
     lines = full_text.splitlines()
 
-    # Generic date line pattern: DD/MM/YYYY or DD-MM-YYYY or DD Mon YYYY
-    date_regex = re.compile(r"^\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3}\s+\d{2,4})\b")
+    # Generic date line pattern: DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY or DD Mon YYYY
+    date_regex = re.compile(r"^\s*(?:\d+\s+)?(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3}\s+\d{2,4})\b")
     amt_regex = re.compile(r"[\d,]+\.\d{2}")
 
     for line in lines:
