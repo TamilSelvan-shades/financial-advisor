@@ -200,59 +200,35 @@ def parse_pdf_statement(file_bytes: bytes, password: Optional[str] = None) -> Di
     # Generic date line pattern: DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY or DD Mon YYYY
     date_regex = re.compile(r"^\s*(?:\d+\s+)?(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3}\s+\d{2,4})\b")
     amt_regex = re.compile(r"[\d,]+\.\d{2}")
-
-    for line in lines:
-        line_str = line.strip()
-        if not line_str:
-            continue
-
-        date_m = date_regex.match(line_str)
-        if not date_m:
-            continue
-
-        raw_date = date_m.group(1)
-        remainder = line_str[date_m.end():].strip()
-
-        # Find amounts in remainder
-        amounts = amt_regex.findall(remainder)
+    
+    current_txn = None
+    
+    def process_accumulated_txn(txn_data):
+        amounts = txn_data["amounts"]
         if not amounts:
-            continue
+            return
+            
+        amt_val = 0.0
+        is_expense = txn_data["is_expense"] if txn_data["is_expense"] is not None else True
+        
+        if len(amounts) >= 2:
+            amt_val = parse_amount_str(amounts[0])
+        else:
+            amt_val = parse_amount_str(amounts[0])
 
-        txn_date = normalize_date(raw_date)
+        if amt_val <= 0:
+            return
 
-        # Narration is the text before amounts
-        first_amt_idx = remainder.find(amounts[0])
-        narration = remainder[:first_amt_idx].strip()
+        # Description is everything before the first amount
+        text = txn_data["text"]
+        first_amt_idx = text.find(amounts[0])
+        narration = text[:first_amt_idx].strip() if first_amt_idx != -1 else text.strip()
         if not narration:
             narration = f"{bank_name} Transaction"
 
-        # Determine withdrawal vs deposit
-        is_expense = True
-        amt_val = 0.0
-
-        if len(amounts) >= 2:
-            # Usually: Withdrawal, Deposit, Balance OR Amount, Balance
-            # Check for CR / DR indicators
-            if "CR" in remainder.upper() or "CREDIT" in remainder.upper():
-                is_expense = False
-                amt_val = parse_amount_str(amounts[0])
-            elif "DR" in remainder.upper() or "DEBIT" in remainder.upper():
-                is_expense = True
-                amt_val = parse_amount_str(amounts[0])
-            else:
-                # Default: first is transaction amount, last is balance
-                amt_val = parse_amount_str(amounts[0])
-        else:
-            amt_val = parse_amount_str(amounts[0])
-            if "CR" in remainder.upper() or "CREDIT" in remainder.upper():
-                is_expense = False
-
-        if amt_val <= 0:
-            continue
-
         category = auto_categorize(narration, is_expense)
         transactions.append({
-            "date": txn_date,
+            "date": txn_data["date"],
             "description": narration,
             "amount": round(amt_val, 2),
             "type": "expense" if is_expense else "income",
@@ -260,6 +236,42 @@ def parse_pdf_statement(file_bytes: bytes, password: Optional[str] = None) -> Di
             "account": detected_account,
             "remarks": f"Parsed from {bank_name} PDF Statement",
         })
+
+    for line in lines:
+        line_str = line.strip()
+        if not line_str:
+            continue
+
+        date_m = date_regex.match(line_str)
+        if date_m:
+            if current_txn:
+                process_accumulated_txn(current_txn)
+            
+            raw_date = date_m.group(1)
+            remainder = line_str[date_m.end():].strip()
+            
+            current_txn = {
+                "date": normalize_date(raw_date),
+                "text": remainder + " ",
+                "amounts": amt_regex.findall(remainder),
+                "is_expense": None
+            }
+            if "CR" in remainder.upper() or "CREDIT" in remainder.upper():
+                current_txn["is_expense"] = False
+            elif "DR" in remainder.upper() or "DEBIT" in remainder.upper():
+                current_txn["is_expense"] = True
+        else:
+            if current_txn:
+                current_txn["text"] += line_str + " "
+                current_txn["amounts"].extend(amt_regex.findall(line_str))
+                if current_txn["is_expense"] is None:
+                    if "CR" in line_str.upper() or "CREDIT" in line_str.upper():
+                        current_txn["is_expense"] = False
+                    elif "DR" in line_str.upper() or "DEBIT" in line_str.upper():
+                        current_txn["is_expense"] = True
+
+    if current_txn:
+        process_accumulated_txn(current_txn)
 
     # If regex found fewer than 2 transactions, attempt Gemini 2.5 Flash fallback on the statement text snippet
     if len(transactions) < 2 and len(full_text) > 100:
