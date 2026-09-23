@@ -176,6 +176,7 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
   const [statementPasswordHint, setStatementPasswordHint] = useState<string | null>(null);
   const [statementPreview, setStatementPreview] = useState<any | null>(null);
   const [isPreviewing, setIsPreviewing] = useState<boolean>(false);
+  const [previewPage, setPreviewPage] = useState<number>(1);
   const statementFormRef = useRef<HTMLFormElement>(null);
 
   // Filter States
@@ -585,6 +586,7 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
         showNotification(`Password required for ${resData.bank || "this PDF"}.`, "error");
       } else if (res.ok && resData.success && resData.data) {
         setStatementPreview(resData.data);
+        setPreviewPage(1); // Reset to first page on new preview
         showNotification(`Preview loaded: ${resData.data.total_transactions} transactions from ${resData.data.bank_name}!`);
       } else {
         showNotification(resData.detail || "Failed to preview statement.", "error");
@@ -2205,7 +2207,7 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {statementPreview.transactions?.slice(0, 15).map((txn: any, idx: number) => (
+                            {statementPreview.transactions?.slice((previewPage - 1) * 15, previewPage * 15).map((txn: any, idx: number) => (
                               <tr key={idx} className="hover:bg-slate-50 transition-colors">
                                 <td className="py-2.5 px-3 font-mono text-slate-500">{txn.date}</td>
                                 <td className="py-2.5 px-3 font-medium text-slate-800 max-w-xs truncate">
@@ -2231,9 +2233,30 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
                       </div>
 
                       <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
-                        <span className="text-slate-500 font-medium">
-                          Showing first {Math.min(15, statementPreview.total_transactions)} of {statementPreview.total_transactions} parsed transactions
-                        </span>
+                        <div className="flex items-center gap-4">
+                          <span className="text-slate-500 font-medium">
+                            Showing {Math.min((previewPage - 1) * 15 + 1, statementPreview.total_transactions)} to {Math.min(previewPage * 15, statementPreview.total_transactions)} of {statementPreview.total_transactions} parsed transactions
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={previewPage === 1}
+                              onClick={() => setPreviewPage((p) => Math.max(1, p - 1))}
+                              className="px-2 py-1 rounded bg-slate-200 text-slate-700 disabled:opacity-50 hover:bg-slate-300 transition-colors cursor-pointer"
+                            >
+                              Prev
+                            </button>
+                            <span className="text-slate-600 font-medium">Page {previewPage}</span>
+                            <button
+                              type="button"
+                              disabled={previewPage * 15 >= statementPreview.total_transactions}
+                              onClick={() => setPreviewPage((p) => p + 1)}
+                              className="px-2 py-1 rounded bg-slate-200 text-slate-700 disabled:opacity-50 hover:bg-slate-300 transition-colors cursor-pointer"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
 
                         <button
                           type="button"
