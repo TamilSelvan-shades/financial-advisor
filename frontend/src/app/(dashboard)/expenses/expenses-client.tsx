@@ -194,7 +194,7 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
   // Category Budgets Collapsible State
   const [budgetExpanderOpen, setBudgetExpanderOpen] = useState(true);
   const [budgetCategoryInput, setBudgetCategoryInput] = useState("");
-  const [budgetLimitInput, setBudgetLimitInput] = useState("5000");
+  const [budgetLimitInput, setBudgetLimitInput] = useState("");
 
   // Form submitting states
   const [submitting, setSubmitting] = useState(false);
@@ -1664,7 +1664,11 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
           {/* ========================================================================= */}
           {/* 5. CATEGORY BUDGETS (Executive Health Matrix - Highlighted in screenshot) */}
           {/* ========================================================================= */}
-          {activeTab === "budgets" && (
+          {activeTab === "budgets" && (() => {
+            const EXCLUDED_CATEGORIES = ["loans", "emi", "credit card bill", "electricity bill", "insurance", "mutual fund", "credit card"];
+            const displayBudgets = budgets.filter(b => !EXCLUDED_CATEGORIES.includes(b.category?.toLowerCase()));
+            
+            return (
             <div className="space-y-6">
               {/* Executive Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
@@ -1679,7 +1683,7 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
 
                 <div className="flex items-center gap-2">
                   <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-100">
-                    {budgets.length} Configured Limits
+                    {displayBudgets.length} Configured Limits
                   </span>
                 </div>
               </div>
@@ -1690,7 +1694,7 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
                 const curPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
                 const curMExp = expenses.filter((e) => e.date && e.date.startsWith(curPrefix));
 
-                if (budgets.length === 0) {
+                if (displayBudgets.length === 0) {
                   return (
                     <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300 space-y-2">
                       <Sliders className="mx-auto text-slate-400" size={40} />
@@ -1704,7 +1708,7 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
 
                 return (
                   <div className="grid gap-6 md:grid-cols-2">
-                    {budgets.map((b) => {
+                    {displayBudgets.map((b) => {
                       const lim = Number(b.monthly_limit) || 0;
                       const spent = curMExp
                         .filter((e) => e.category?.toLowerCase() === b.category?.toLowerCase())
@@ -1864,7 +1868,7 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
                 )}
               </div>
             </div>
-          )}
+          )})()}
 
           {/* ========================================================================= */}
           {/* 6. LOG INCOME / EXPENSE */}

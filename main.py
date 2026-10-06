@@ -1682,13 +1682,7 @@ def create_single_expense(exp: schemas.ExpenseCreate, background_tasks: Backgrou
     new_expense = models.Expense(**exp.model_dump(), tenant_id=current_user.id)
     db.add(new_expense)
 
-    existing_budget = (
-        db.query(models.Budget)
-        .filter(func.lower(models.Budget.category) == exp.category.lower(), models.Budget.tenant_id == current_user.id)
-        .first()
-    )
-    if not existing_budget:
-        db.add(models.Budget(category=exp.category, monthly_limit=5000.00, tenant_id=current_user.id))
+    db.commit()
 
     db.commit()
 
@@ -1920,12 +1914,6 @@ async def scan_receipt(
     if auto_commit and amt_in_inr > 0:
         acc_name = account or "Cash"
         cat = data.get("category", "Miscellaneous")
-        existing_budget = db.query(models.Budget).filter(
-            func.lower(models.Budget.category) == cat.lower(),
-            models.Budget.tenant_id == current_user.id
-        ).first()
-        if not existing_budget:
-            db.add(models.Budget(category=cat, monthly_limit=5000.00, tenant_id=current_user.id))
 
         remarks_text = f"Receipt OCR: {data.get('merchant')}"
         if data.get("line_items"):
