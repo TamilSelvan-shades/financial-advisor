@@ -1170,8 +1170,12 @@ app.include_router(billing.router, prefix="/api/v1", tags=["Billing"])
 @app.get("/api/v1/dashboard", tags=["Dashboard"])
 @app.get("/api/v1/dashboard/", tags=["Dashboard"])
 def get_dashboard_data(db: Session = Depends(get_db), current_user: models.User = Depends(dependencies.verify_active_subscription)):
-    from datetime import datetime
+    from datetime import datetime, date
     from collections import defaultdict
+    import reminder_service
+
+    # Auto-reset any stale "Paid" bills to "Pending" if the month has rolled over
+    reminder_service.auto_reset_stale_paid_bills(db, str(current_user.id), date.today())
 
     def serialize(query_result):
         results = []
@@ -1201,9 +1205,11 @@ def get_dashboard_data(db: Session = Depends(get_db), current_user: models.User 
             if hasattr(row, 'due_day') and 'due_date' not in row_dict:
                 now_dt = datetime.now()
                 day = min(max(row.due_day or 1, 1), 28)
-                row_dict['due_date'] = f"{now_dt.year}-{now_dt.month:02d}-{day:02d}"
+                # Only fallback if next_due_date is missing
+                row_dict['due_date'] = getattr(row, 'next_due_date', None) or f"{now_dt.year}-{now_dt.month:02d}-{day:02d}"
                 row_dict['is_paid'] = (getattr(row, 'status', 'Pending') == "Paid")
-                row_dict['frequency'] = "Monthly"
+                if 'frequency' not in row_dict:
+                    row_dict['frequency'] = "Monthly"
 
             results.append(row_dict)
         return results

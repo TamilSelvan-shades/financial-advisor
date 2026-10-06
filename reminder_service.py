@@ -35,19 +35,81 @@ def get_next_month(year: int, month: int) -> tuple[int, int]:
     return year, month + 1
 
 
+def auto_reset_stale_paid_bills(db: Session, tenant_id: str, today: datetime.date) -> None:
+    """
+    Checks all 'Paid' bills. If a bill was marked 'Paid' but we are now in a new month,
+    it automatically resets the status to 'Pending'.
+    Uses the next_due_date and the latest Expense record linked to the bill to determine when it was actually paid.
+    """
+    paid_bills = db.query(models.Bill).filter(
+        models.Bill.tenant_id == tenant_id,
+        models.Bill.status == "Paid"
+    ).all()
+
+    current_month_prefix = today.strftime("%Y-%m")
+    needs_commit = False
+
+    for b in paid_bills:
+        if b.frequency == "One-Time":
+            continue
+            
+        should_reset = False
+        
+        # Method 1: next_due_date
+        if b.next_due_date:
+            try:
+                next_due = datetime.datetime.strptime(b.next_due_date[:10], "%Y-%m-%d").date()
+                if b.frequency == "Yearly":
+                    # For yearly, check if we've passed the exact due date of the current year
+                    # Wait, if next_due is set to next year, today >= next_due.replace(...) will trigger
+                    # next year when the month arrives.
+                    if today >= next_due.replace(day=1):
+                        should_reset = True
+                else:
+                    if today >= next_due.replace(day=1):
+                        should_reset = True
+            except Exception:
+                pass
+                
+        # Method 2: Check latest expense
+        if not should_reset:
+            last_expense = db.query(models.Expense).filter(
+                models.Expense.tenant_id == tenant_id,
+                models.Expense.remarks.like(f"%Bill #{b.id}%")
+            ).order_by(models.Expense.date.desc()).first()
+            
+            if last_expense and last_expense.date:
+                try:
+                    paid_dt = datetime.datetime.strptime(last_expense.date[:10], "%Y-%m-%d").date()
+                    if b.frequency == "Monthly":
+                        if today.year > paid_dt.year or today.month > paid_dt.month:
+                            should_reset = True
+                    elif b.frequency == "Yearly":
+                        if today.year > paid_dt.year and today.month >= paid_dt.month:
+                            should_reset = True
+                except Exception:
+                    pass
+            elif not b.next_due_date:
+                should_reset = True
+                
+        if should_reset:
+            b.status = "Pending"
+            b.next_due_date = None
+            needs_commit = True
+            
+    if needs_commit:
+        db.commit()
+
+
 def calculate_bill_timeline(
     due_day: int,
     status: str,
+    frequency: str = "Monthly",
+    next_due_date_str: Optional[str] = None,
     ref_date: Optional[datetime.date] = None,
 ) -> Dict[str, Any]:
     """
     Computes precise calendar due dates, overdue status, and days until due.
-    Correctly handles:
-      - Overdue bills when due_day has elapsed in the current month without payment
-      - Bills due today (due_day == current_day)
-      - Upcoming bills due in current month (due_day > current_day)
-      - Upcoming bills due in next month across month boundary (e.g. ref_date is 29th, due_day is 3rd)
-      - Already paid bills (next billing cycle projected to next month)
     """
     today = ref_date or datetime.date.today()
     current_day = today.day
@@ -55,38 +117,65 @@ def calculate_bill_timeline(
     due_day_clean = min(max(int(due_day or 1), 1), 31)
 
     if is_paid:
-        # Bill is settled for current cycle. Next occurrence is next month.
-        ny, nm = get_next_month(today.year, today.month)
-        next_due = safe_date(ny, nm, due_day_clean)
-        days_until_due = (next_due - today).days
+        if frequency == "One-Time":
+            return {
+                "due_day": due_day_clean,
+                "lifecycle_status": "paid",
+                "next_due_date": "N/A",
+                "days_until_due": 0,
+                "days_overdue": 0,
+                "urgency": "none",
+                "label": "Settled",
+            }
+        elif frequency == "Yearly" and next_due_date_str:
+            try:
+                next_due = datetime.datetime.strptime(next_due_date_str[:10], "%Y-%m-%d").date()
+            except:
+                next_due = safe_date(today.year + 1, today.month, due_day_clean)
+        else:
+            ny, nm = get_next_month(today.year, today.month)
+            next_due = safe_date(ny, nm, due_day_clean)
+            
+        days_until_due = (next_due - today).days if next_due else 0
         return {
             "due_day": due_day_clean,
             "lifecycle_status": "paid",
-            "next_due_date": next_due.strftime("%Y-%m-%d"),
+            "next_due_date": next_due.strftime("%Y-%m-%d") if next_due else "N/A",
             "days_until_due": days_until_due,
             "days_overdue": 0,
             "urgency": "none",
             "label": "Settled for this cycle",
         }
 
-    # Not paid: examine current month vs due_day
-    if due_day_clean < current_day:
-        # Due day has elapsed in the current month and is unpaid => OVERDUE
+    # Not paid
+    if frequency in ("Yearly", "One-Time") and next_due_date_str:
+        try:
+            due_date = datetime.datetime.strptime(next_due_date_str[:10], "%Y-%m-%d").date()
+            if frequency == "Yearly":
+                # Ensure the due date is in the current year if it's passed, or if it hasn't passed
+                if due_date.replace(year=today.year) < today:
+                    due_date = due_date.replace(year=today.year)
+                else:
+                    due_date = due_date.replace(year=today.year)
+        except:
+            due_date = safe_date(today.year, today.month, due_day_clean)
+    else:
+        # Default monthly approach
         due_date = safe_date(today.year, today.month, due_day_clean)
-        days_overdue = current_day - due_day_clean
-        days_until_due = -days_overdue
+        
+    days_diff = (due_date - today).days
+
+    if days_diff < 0:
         return {
             "due_day": due_day_clean,
             "lifecycle_status": "overdue",
             "next_due_date": due_date.strftime("%Y-%m-%d"),
-            "days_until_due": days_until_due,
-            "days_overdue": days_overdue,
+            "days_until_due": days_diff,
+            "days_overdue": -days_diff,
             "urgency": "critical",
-            "label": f"OVERDUE by {days_overdue} day{'s' if days_overdue > 1 else ''}",
+            "label": f"OVERDUE by {-days_diff} day{'s' if -days_diff > 1 else ''}",
         }
-    elif due_day_clean == current_day:
-        # Due TODAY
-        due_date = today
+    elif days_diff == 0:
         return {
             "due_day": due_day_clean,
             "lifecycle_status": "due_today",
@@ -96,27 +185,25 @@ def calculate_bill_timeline(
             "urgency": "high",
             "label": "DUE TODAY",
         }
-    else:
-        # Due later in current month
-        due_date = safe_date(today.year, today.month, due_day_clean)
-        days_until_due = (due_date - today).days
-        if days_until_due <= 7:
-            lifecycle = "upcoming_7d"
-            urgency = "high" if days_until_due <= 2 else "medium"
-            label = f"Due in {days_until_due} days"
-        else:
-            lifecycle = "future"
-            urgency = "low"
-            label = f"Due on {due_date.strftime('%b %d')}"
-
+    elif days_diff <= 7:
         return {
             "due_day": due_day_clean,
-            "lifecycle_status": lifecycle,
+            "lifecycle_status": "upcoming_7d",
             "next_due_date": due_date.strftime("%Y-%m-%d"),
-            "days_until_due": days_until_due,
+            "days_until_due": days_diff,
             "days_overdue": 0,
-            "urgency": urgency,
-            "label": label,
+            "urgency": "high" if days_diff <= 2 else "medium",
+            "label": f"Due in {days_diff} day{'s' if days_diff > 1 else ''}",
+        }
+    else:
+        return {
+            "due_day": due_day_clean,
+            "lifecycle_status": "upcoming_future",
+            "next_due_date": due_date.strftime("%Y-%m-%d"),
+            "days_until_due": days_diff,
+            "days_overdue": 0,
+            "urgency": "low",
+            "label": f"Due on {due_date.strftime('%b %d')}",
         }
 
 
@@ -308,7 +395,10 @@ def get_tenant_reminders_and_status(
     _, days_in_month = calendar.monthrange(today.year, today.month)
     days_left_in_cycle = max(1, days_in_month - today.day + 1)
 
-    # 1. Bills Classification
+    # 1. Auto-reset stale paid bills
+    auto_reset_stale_paid_bills(db, tenant_id, today)
+
+    # 2. Bills Classification
     bills = db.query(models.Bill).filter(models.Bill.tenant_id == tenant_id).all()
     overdue_bills: List[Dict[str, Any]] = []
     due_today_bills: List[Dict[str, Any]] = []
@@ -316,7 +406,13 @@ def get_tenant_reminders_and_status(
     paid_bills: List[Dict[str, Any]] = []
 
     for b in bills:
-        timeline = calculate_bill_timeline(b.due_day or 1, b.status or "Pending", today)
+        timeline = calculate_bill_timeline(
+            due_day=b.due_day or 1,
+            status=b.status or "Pending",
+            frequency=b.frequency or "Monthly",
+            next_due_date_str=b.next_due_date,
+            ref_date=today
+        )
         bill_data = {
             "id": b.id,
             "name": b.name,
@@ -561,6 +657,21 @@ def settle_bill_with_expense(
 
     bill.status = "Paid"
     today_str = payment_date or datetime.date.today().strftime("%Y-%m-%d")
+    
+    # Project next due date
+    try:
+        payment_dt = datetime.datetime.strptime(today_str[:10], "%Y-%m-%d").date()
+    except:
+        payment_dt = datetime.date.today()
+        
+    if bill.frequency == "One-Time":
+        bill.next_due_date = None
+    elif bill.frequency == "Yearly":
+        bill.next_due_date = safe_date(payment_dt.year + 1, payment_dt.month, bill.due_day or 1).strftime("%Y-%m-%d")
+    else:
+        ny, nm = get_next_month(payment_dt.year, payment_dt.month)
+        bill.next_due_date = safe_date(ny, nm, bill.due_day or 1).strftime("%Y-%m-%d")
+
     created_expense = None
 
     if auto_log_expense:
