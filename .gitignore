@@ -1,6 +1,7 @@
 *.db
 __pycache__/
 venv/
+venv2/
 .env
 scratch/
 backups/

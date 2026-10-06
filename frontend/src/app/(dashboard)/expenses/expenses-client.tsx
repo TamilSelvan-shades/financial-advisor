@@ -50,6 +50,7 @@ import {
   Mic,
   Lock,
   Eye,
+  Edit2,
 } from "lucide-react";
 import { useCurrency } from "@/context/currency-context";
 import ReceiptScannerModal from "@/components/receipt-scanner-modal";
@@ -1750,13 +1751,26 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
                                   {pct.toFixed(0)}%
                                 </span>
                                 {b.id && (
-                                  <button
-                                    onClick={() => handleDeleteBudget(b.id)}
-                                    title="Delete budget"
-                                    className="p-1.5 text-slate-300 hover:text-red-500 transition-colors rounded-lg hover:bg-slate-100"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => {
+                                        setBudgetCategoryInput(b.category);
+                                        setBudgetLimitInput(String(b.monthly_limit));
+                                        setBudgetExpanderOpen(true);
+                                      }}
+                                      title="Edit budget limit"
+                                      className="p-1.5 text-slate-300 hover:text-indigo-600 transition-colors rounded-lg hover:bg-slate-100"
+                                    >
+                                      <Edit2 size={14} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteBudget(b.id)}
+                                      title="Delete budget"
+                                      className="p-1.5 text-slate-300 hover:text-red-500 transition-colors rounded-lg hover:bg-slate-100"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             </div>
