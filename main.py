@@ -1488,9 +1488,17 @@ def delete_goal(goal_id: int, db: Session = Depends(get_db), current_user: model
 def delete_bill(bill_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(dependencies.verify_active_subscription)):
     b = db.query(models.Bill).filter(models.Bill.id == bill_id, models.Bill.tenant_id == current_user.id).first()
     if b:
+        # Also clean up any expenses that were auto-logged by this bill
+        auto_expenses = db.query(models.Expense).filter(
+            models.Expense.tenant_id == current_user.id,
+            models.Expense.remarks.like(f"%Auto-settled from Recurring Bills (Bill #{bill_id})%")
+        ).all()
+        for exp in auto_expenses:
+            db.delete(exp)
+            
         db.delete(b)
         db.commit()
-        return {"message": "Bill deleted successfully."}
+        return {"message": "Bill and associated auto-logged expenses deleted successfully."}
     raise HTTPException(status_code=404, detail="Bill not found.")
 
 @app.put("/api/v1/bills/{bill_id}/toggle-status", tags=["Bills"])
