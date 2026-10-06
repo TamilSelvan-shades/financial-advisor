@@ -60,6 +60,12 @@ function calculateEMI(principal: number, annualRate: number, tenureMonths: numbe
   return isNaN(emi) ? 0 : emi;
 }
 
+function formatRelativeMonthToDate(months: number): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() + months);
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
 interface StrategyResult {
   totalMonths: number;
   totalInterest: number;
@@ -192,7 +198,7 @@ export function DebtPayoffMatrix({ loans }: DebtPayoffMatrixProps) {
     for (let m = 0; m < maxLen; m += step) {
       timeline.push({
         month: m,
-        label: `M${m}`,
+        label: formatRelativeMonthToDate(m),
         baseline: baseline.monthlyBalances[m] !== undefined ? baseline.monthlyBalances[m] : 0,
         snowball: snowball.monthlyBalances[m] !== undefined ? snowball.monthlyBalances[m] : 0,
         avalanche: avalanche.monthlyBalances[m] !== undefined ? avalanche.monthlyBalances[m] : 0,
@@ -322,13 +328,14 @@ export function DebtPayoffMatrix({ loans }: DebtPayoffMatrixProps) {
                 {simulation.snowball.payoffOrder.map((item, idx) => (
                   <span
                     key={idx}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 text-xs font-medium"
+                    title={`${item.name} — Paid off by ${formatRelativeMonthToDate(item.month)}`}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 text-xs font-medium cursor-help"
                   >
                     <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">
                       {idx + 1}
                     </span>
                     <span className="truncate max-w-[120px]">{item.name}</span>
-                    <span className="text-[10px] text-blue-600 font-semibold">(M{item.month})</span>
+                    <span className="text-[10px] text-blue-600 font-semibold">({formatRelativeMonthToDate(item.month)})</span>
                   </span>
                 ))}
               </div>
@@ -380,13 +387,14 @@ export function DebtPayoffMatrix({ loans }: DebtPayoffMatrixProps) {
                 {simulation.avalanche.payoffOrder.map((item, idx) => (
                   <span
                     key={idx}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-medium"
+                    title={`${item.name} — Paid off by ${formatRelativeMonthToDate(item.month)}`}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-medium cursor-help"
                   >
                     <span className="w-4 h-4 rounded-full bg-emerald-600 text-white text-[10px] flex items-center justify-center font-bold">
                       {idx + 1}
                     </span>
                     <span className="truncate max-w-[120px]">{item.name}</span>
-                    <span className="text-[10px] text-emerald-600 font-semibold">(M{item.month})</span>
+                    <span className="text-[10px] text-emerald-600 font-semibold">({formatRelativeMonthToDate(item.month)})</span>
                   </span>
                 ))}
               </div>
