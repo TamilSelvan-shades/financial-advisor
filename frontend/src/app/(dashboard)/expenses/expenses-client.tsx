@@ -547,9 +547,8 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
       if (res.ok) {
         form.reset();
         setLogCategoryInput("");
-        showNotification(`${logTxType} of ${formatINR(amount)} saved successfully! Switched to Monthly Overview.`);
+        showNotification(`${logTxType} of ${formatINR(amount)} saved successfully!`);
         await loadData();
-        switchTab("monthly");
       } else {
         showNotification(`Failed to record ${logTxType.toLowerCase()}.`, "error");
       }

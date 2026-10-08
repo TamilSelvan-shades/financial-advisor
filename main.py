@@ -294,281 +294,13 @@ def scheduled_financial_health_check():
 
 
 def async_process_telegram_message(user_text: str, tenant_id: str, chat_id: str):
-    if not ai_client:
-        return
-
-    db = SessionLocal()
-    today = datetime.date.today().strftime("%Y-%m-%d")
-    user_clean = user_text.strip().lower()
-
-    # Fast-path command handlers
-    if user_clean in ["/status", "status", "daily status", "today status"]:
-        status_data = reminder_service.get_tenant_reminders_and_status(db, str(tenant_id))
-        msg = reminder_service.format_daily_status_telegram_message(status_data)
-        actionable_bills = status_data["bills"].get("overdue_bills", []) + status_data["bills"].get("due_today_bills", [])
-        markup = reminder_service.build_bills_inline_keyboard(actionable_bills)
-        db.close()
-        send_telegram_alert(msg, chat_id, reply_markup=markup)
-        return
-
-    if user_clean in ["/bills", "bills", "pending bills", "due bills"]:
-        status_data = reminder_service.get_tenant_reminders_and_status(db, str(tenant_id))
-        msg, markup = reminder_service.format_pending_bills_telegram_message(status_data)
-        db.close()
-        send_telegram_alert(msg, chat_id, reply_markup=markup)
-        return
-
-    # Fast-path: Radar
-    if user_clean in ["/radar", "radar", "discover subscriptions", "untracked bills", "detected bills", "find bills"]:
-        disc = recurring_radar.discover_recurring_charges(db, str(tenant_id))
-        msg, markup = telegram_listener.format_discovered_subscriptions_telegram(disc)
-        db.close()
-        send_telegram_alert(msg, chat_id, reply_markup=markup)
-        return
-
-    # Fast-path: What-If Affordability
-    afford_match = re.search(r"(?:can\s+(?:i|we)\s+afford|afford)\s+(?:a\s+|an\s+)?(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?)\s*(?:for\s+a\s+|for\s+|on\s+a\s+|on\s+)?([a-zA-Z\s]+)?", user_clean)
-    if afford_match:
-        raw_amt = afford_match.group(1).replace(",", "")
-        raw_name = (afford_match.group(2) or "Purchase").strip().title()
-        try:
-            amt = float(raw_amt)
-            msg = telegram_listener.handle_what_if_scenario(db, str(tenant_id), {
-                "scenario_type": "affordability",
-                "amount": amt,
-                "name": raw_name,
-            })
-            db.close()
-            send_telegram_alert(msg, chat_id)
-            return
-        except Exception:
-            pass
-
-    # Fast-path: What-If EMI
-    if "emi" in user_clean and any(kw in user_clean for kw in ["buy", "laptop", "car", "phone", "tv", "purchase", "what if", "get"]):
-        amt_match = re.search(r"(?:₹|rs\.?|inr)?\s*([\d,]+)", user_clean)
-        mo_match = re.search(r"(\d+)\s*(?:month|mo)", user_clean)
-        amt = float(amt_match.group(1).replace(",", "")) if amt_match else 50000.0
-        tenure = int(mo_match.group(1)) if mo_match else 6
-        name = "Purchased Item"
-        for candidate in ["laptop", "phone", "tv", "car", "bike", "refrigerator", "iphone", "macbook"]:
-            if candidate in user_clean:
-                name = candidate.capitalize()
-                break
-        msg = telegram_listener.handle_what_if_scenario(db, str(tenant_id), {
-            "scenario_type": "emi",
-            "amount": amt,
-            "tenure_months": tenure,
-            "annual_interest_rate": 0.0 if "no cost" in user_clean else 12.0,
-            "name": name,
-        })
-        db.close()
-        send_telegram_alert(msg, chat_id)
-        return
-
-    # Fast-path: What-If Prepayment
-    prepay_match = re.search(r"prepay\s+(?:₹|rs\.?|inr)?\s*([\d,]+)", user_clean)
-    if prepay_match:
-        amt = float(prepay_match.group(1).replace(",", ""))
-        loan_name = "Car Loan" if "car" in user_clean else ("Home Loan" if "home" in user_clean else "Loan")
-        msg = telegram_listener.handle_what_if_scenario(db, str(tenant_id), {
-            "scenario_type": "prepayment",
-            "amount": amt,
-            "name": loan_name,
-        })
-        db.close()
-        send_telegram_alert(msg, chat_id)
-        return
-
-    total_assets = (
-        db.query(func.sum(models.Investment.current_value)).filter(models.Investment.tenant_id == tenant_id).scalar() or 0.0
-    )
-    total_debt = db.query(func.sum(models.Loan.principal)).filter(models.Loan.tenant_id == tenant_id).scalar() or 0.0
-    context = f"Net Worth: ₹{total_assets - total_debt:,.2f} (Assets: ₹{total_assets:,.2f}, Debt: ₹{total_debt:,.2f})"
-
-    prompt = f"""
-    You are an AI financial advisor on Telegram. Today is {today}. Context: {context}
-    User Message: "{user_text}"
-    
-    Classify intent into pure JSON:
-    1. Settle bill (e.g. "paid electricity bill 1450", "mark netflix paid", "cleared wifi 999"):
-       {{"type": "settle_bill", "bill_name": "electricity", "amount": 1450.0, "account": "ICICI Savings Account"}}
-    2. Add recurring bill (e.g. "remind me to pay gym 2500 on 10th", "add bill wifi 999 on 15"):
-       {{"type": "add_bill", "name": "Gym Membership", "amount": 2500.0, "due_day": 10, "category": "Fitness"}}
-    3. Daily status query (e.g. "what's my status today?", "how much can I spend today?", "daily status"):
-       {{"type": "daily_status"}}
-    4. Pending bills query (e.g. "what bills are due?", "show pending bills"):
-       {{"type": "list_bills"}}
-    5. Log expense:
-       {{"type": "log_expense", "amount": 30.0, "description": "groceries", "category": "Groceries", "account": "ICICI Savings Account"}}
-    6. Log income:
-       {{"type": "log_income", "amount": 120000.0, "description": "salary", "category": "Salary", "account": "ICICI Savings Account"}}
-    7. What-If Scenario simulation:
-       {{"type": "what_if_scenario", "scenario_type": "affordability" | "emi" | "prepayment", "amount": 25000.0, "tenure_months": 6, "annual_interest_rate": 0.0, "name": "Vacation / Laptop"}}
-    8. Discover subscriptions:
-       {{"type": "discover_bills"}}
-    9. Otherwise:
-       {{"type": "chat", "reply": "Your markdown answer."}}
-    """
-    reply_markup = None
+    import telegram_listener
     try:
-        response = ai_client.models.generate_content(
-            model="gemini-2.5-flash", contents=prompt
-        )
-        cleaned = (
-            response.text.strip()
-            .replace("```json", "")
-            .replace("```", "")
-            .strip()
-        )
-        data = json.loads(cleaned)
-        intent = data.get("type")
-
-        if intent == "settle_bill":
-            bill_name = str(data.get("bill_name", "")).strip()
-            amt = float(data.get("amount", 0.0) or 0.0)
-            acc = data.get("account", "ICICI Savings Account")
-
-            matched_bill = reminder_service.find_matching_bill(db, str(tenant_id), bill_name, amt)
-            if matched_bill:
-                res = reminder_service.settle_bill_with_expense(
-                    db=db,
-                    tenant_id=str(tenant_id),
-                    bill_id=matched_bill.id,
-                    auto_log_expense=True,
-                    account=acc,
-                )
-                exp_amt = res["created_expense"]["amount"] if res.get("created_expense") else matched_bill.amount
-                reply = (
-                    f"✅ *Bill Settled & Recorded in Ledger!*\n"
-                    f"• Bill: *{matched_bill.name}*\n"
-                    f"• Amount: ₹{exp_amt:,.2f}\n"
-                    f"• Account: {acc}\n"
-                    f"• Status: Paid\n"
-                    f"• Ledger: Expense added to Utilities & Bills"
-                )
-                reply_markup = {
-                    "inline_keyboard": [
-                        [{"text": "📊 View Updated Status", "callback_data": "daily_status"}],
-                        [{"text": "📅 View Remaining Bills", "callback_data": "pending_bills"}],
-                    ]
-                }
-            else:
-                if amt > 0:
-                    desc = f"Payment: {bill_name.capitalize() if bill_name else 'Bill'}"
-                    db.add(models.Expense(
-                        date=today,
-                        description=desc,
-                        amount=amt,
-                        category="Utilities",
-                        account=acc,
-                        tenant_id=tenant_id,
-                        remarks="Logged via Telegram Webhook",
-                    ))
-                    db.commit()
-                    reply = (
-                        f"✅ *Expense Logged (No Registered Bill Found):*\n"
-                        f"• {desc}: ₹{amt:,.2f} (Utilities)\n"
-                        f"• Account: {acc}"
-                    )
-                else:
-                    reply = f"I couldn't find an unpaid bill matching *'{bill_name}'*."
-
-        elif intent == "add_bill":
-            name = str(data.get("name", "Recurring Bill")).strip().title()
-            amt = float(data.get("amount", 0.0) or 0.0)
-            due_day = int(data.get("due_day", 1) or 1)
-            cat = str(data.get("category", "Utilities")).strip().title()
-
-            res = reminder_service.add_recurring_bill(
-                db=db,
-                tenant_id=str(tenant_id),
-                name=name,
-                amount=amt,
-                due_day=due_day,
-                category=cat,
-            )
-            b_info = res["bill"]
-            reply = (
-                f"📅 *New Recurring Bill Tracked!*\n"
-                f"• Bill: *{b_info['name']}*\n"
-                f"• Amount: ₹{b_info['amount']:,.2f}\n"
-                f"• Due Day: Day {b_info['due_day']} of every month\n"
-                f"• Schedule: {b_info['label']} ({b_info['next_due_date']})"
-            )
-            reply_markup = {
-                "inline_keyboard": [
-                    [{"text": "📅 View All Bills", "callback_data": "pending_bills"}],
-                    [{"text": "📊 View Daily Status", "callback_data": "daily_status"}],
-                ]
-            }
-
-        elif intent == "daily_status":
-            status_data = reminder_service.get_tenant_reminders_and_status(db, str(tenant_id))
-            reply = reminder_service.format_daily_status_telegram_message(status_data)
-            actionable_bills = status_data["bills"].get("overdue_bills", []) + status_data["bills"].get("due_today_bills", [])
-            reply_markup = reminder_service.build_bills_inline_keyboard(actionable_bills)
-
-        elif intent == "list_bills":
-            status_data = reminder_service.get_tenant_reminders_and_status(db, str(tenant_id))
-            reply, reply_markup = reminder_service.format_pending_bills_telegram_message(status_data)
-
-        elif intent == "log_expense":
-            category_name = data.get("category", "General").strip()
-            desc = data.get("description", "Expense").capitalize()
-            amt = float(data.get("amount", 0.0))
-            acc = data.get("account", "ICICI Savings Account")
-
-            db.add(
-                models.Expense(
-                    date=today,
-                    description=desc,
-                    amount=amt,
-                    category=category_name,
-                    account=acc,
-                    tenant_id=tenant_id
-                )
-            )
-            db.commit()
-            reply = f"✅ *Logged Expense via Webhook:*\n• {desc}: ₹{amt:,.2f} ({category_name})\n• Account: {acc}"
-            warning = check_budget_threshold_alert(db, category_name, tenant_id)
-            if warning:
-                reply += f"\n\n{warning}"
-
-        elif intent == "log_income":
-            category_name = data.get("category", "Salary").strip()
-            desc = data.get("description", "Income").capitalize()
-            amt = float(data.get("amount", 0.0))
-            acc = data.get("account", "ICICI Savings Account")
-
-            db.add(
-                models.Income(
-                    date=today,
-                    description=desc,
-                    amount=amt,
-                    category=category_name,
-                    account=acc,
-                    tenant_id=tenant_id
-                )
-            )
-            db.commit()
-            reply = f"💰 *Logged Income via Webhook:*\n• {desc}: ₹{amt:,.2f} ({category_name})\n• Account: {acc}"
-
-        elif intent == "what_if_scenario":
-            reply = telegram_listener.handle_what_if_scenario(db, str(tenant_id), data)
-
-        elif intent == "discover_bills":
-            disc = recurring_radar.discover_recurring_charges(db, str(tenant_id))
-            reply, reply_markup = telegram_listener.format_discovered_subscriptions_telegram(disc)
-
-        else:
-            reply = data.get("reply", "Understood.")
+        reply, markup = telegram_listener.process_with_gemini(user_text, chat_id)
+        if reply:
+            send_telegram_alert(reply, chat_id, reply_markup=markup)
     except Exception as e:
-        reply = f"Agent Error: {str(e)}"
-    finally:
-        db.close()
-
-    send_telegram_alert(reply, chat_id, reply_markup=reply_markup)
+        print(f"Error processing telegram message: {e}")
 
 
 def async_process_whatsapp_message(user_text: str, tenant_id: str, to_phone: str):
@@ -1106,6 +838,7 @@ async def lifespan(app: FastAPI):
         "cron",
         hour=8,
         minute=0,
+        timezone=os.getenv("TZ", "Asia/Kolkata"),
         id="daily_health_check",
     )
     scheduler.start()
@@ -1221,7 +954,46 @@ def get_dashboard_data(db: Session = Depends(get_db), current_user: models.User 
         db.query(models.BalanceAdjustment).filter(models.BalanceAdjustment.tenant_id == current_user.id).all()
     )
     loans = serialize(db.query(models.Loan).filter(models.Loan.tenant_id == current_user.id).all())
-    investments = serialize(db.query(models.Investment).filter(models.Investment.tenant_id == current_user.id).all())
+    # Fetch raw investments to access relationships
+    raw_investments = db.query(models.Investment).filter(models.Investment.tenant_id == current_user.id).all()
+    investments = serialize(raw_investments)
+    
+    # Calculate XIRR for each investment
+    from pyxirr import xirr, InvalidPaymentsError
+    from datetime import datetime
+    today_date = datetime.now()
+    
+    for idx, inv in enumerate(raw_investments):
+        xirr_pct = None
+        if inv.transactions and inv.current_value > 0:
+            dates = []
+            amounts = []
+            for tx in inv.transactions:
+                try:
+                    # Parse YYYY-MM-DD
+                    tx_date = datetime.strptime(tx.date.split("T")[0], "%Y-%m-%d")
+                    dates.append(tx_date)
+                    if tx.type in ["BUY", "SIP"]:
+                        amounts.append(-tx.amount)
+                    elif tx.type == "SELL":
+                        amounts.append(tx.amount)
+                except Exception:
+                    pass
+            
+            if dates:
+                dates.append(today_date)
+                amounts.append(inv.current_value)
+                try:
+                    res = xirr(dates, amounts)
+                    if res is not None:
+                        xirr_pct = res * 100
+                except InvalidPaymentsError:
+                    pass
+                except Exception:
+                    pass
+        
+        investments[idx]['xirr'] = xirr_pct
+
     budgets = serialize(db.query(models.Budget).filter(models.Budget.tenant_id == current_user.id).all())
     goals = serialize(db.query(models.Goal).filter(models.Goal.tenant_id == current_user.id).all())
     bills = serialize(db.query(models.Bill).filter(models.Bill.tenant_id == current_user.id).all())
@@ -2129,16 +1901,130 @@ def create_investment(inv: schemas.InvestmentCreate, db: Session = Depends(get_d
     cat = inv.category or inv.type or inv.asset_type or "Equity"
     inv_amt = float(inv.invested_amount or inv.current_value or 0.0)
     curr_val = float(inv.current_value or inv_amt or 0.0)
+    
     new_inv = models.Investment(
         name=inv.name,
         category=cat,
         invested_amount=inv_amt,
         current_value=curr_val,
+        ticker_symbol=inv.ticker_symbol,
+        live_tracking_type=inv.live_tracking_type,
+        quantity=inv.quantity or 0.0,
+        average_price=inv.average_price or 0.0,
+        is_sip=inv.is_sip or False,
+        sip_amount=inv.sip_amount,
+        sip_date=inv.sip_date,
+        goal_id=inv.goal_id,
         tenant_id=current_user.id
     )
     db.add(new_inv)
     db.commit()
-    return {"message": "Investment added."}
+    db.refresh(new_inv)
+    
+    # Create initial transaction if quantity/amount is provided
+    if inv_amt > 0:
+        initial_tx = models.InvestmentTransaction(
+            investment_id=new_inv.id,
+            type="BUY",
+            date=datetime.datetime.utcnow().strftime("%Y-%m-%d"),
+            amount=inv_amt,
+            quantity=inv.quantity,
+            price_per_unit=inv.average_price
+        )
+        db.add(initial_tx)
+        db.commit()
+        
+    return {"message": "Investment added.", "id": new_inv.id}
+
+@app.post("/api/v1/investments/{investment_id}/refresh", tags=["Investments"])
+def refresh_investment_price(investment_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(dependencies.verify_active_subscription)):
+    from live_tracking import get_live_price
+    inv = db.query(models.Investment).filter(models.Investment.id == investment_id, models.Investment.tenant_id == current_user.id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investment not found")
+        
+    if inv.ticker_symbol and inv.live_tracking_type:
+        price = get_live_price(inv.ticker_symbol, inv.live_tracking_type)
+        if price > 0 and inv.quantity > 0:
+            inv.current_value = price * inv.quantity
+            db.commit()
+            return {"message": "Price updated successfully", "current_value": inv.current_value, "current_price": price}
+    return {"message": "No live tracking setup or failed to fetch price."}
+
+@app.post("/api/v1/investments/{investment_id}/transactions", tags=["Investments"])
+def add_investment_transaction(investment_id: int, tx: schemas.InvestmentTransactionCreate, db: Session = Depends(get_db), current_user: models.User = Depends(dependencies.verify_active_subscription)):
+    inv = db.query(models.Investment).filter(models.Investment.id == investment_id, models.Investment.tenant_id == current_user.id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investment not found")
+        
+    new_tx = models.InvestmentTransaction(
+        investment_id=inv.id,
+        type=tx.type.upper(),
+        date=tx.date,
+        amount=tx.amount,
+        quantity=tx.quantity,
+        price_per_unit=tx.price_per_unit
+    )
+    db.add(new_tx)
+    
+    # Update total invested, current_value, and quantity
+    if tx.type.upper() in ["BUY", "SIP"]:
+        inv.invested_amount += tx.amount
+        inv.current_value = (inv.current_value or 0.0) + tx.amount
+        if tx.quantity:
+            inv.quantity += tx.quantity
+            # recalculate average price
+            if inv.quantity > 0:
+                inv.average_price = inv.invested_amount / inv.quantity
+    elif tx.type.upper() == "SELL":
+        inv.invested_amount -= tx.amount # simplistic, ideally should use average price
+        inv.current_value = (inv.current_value or 0.0) - tx.amount
+        if inv.current_value < 0:
+            inv.current_value = 0.0
+        if tx.quantity:
+            inv.quantity -= tx.quantity
+            if inv.quantity <= 0:
+                inv.quantity = 0.0
+                inv.invested_amount = 0.0
+                inv.current_value = 0.0
+    db.commit()
+    return {"message": "Transaction added."}
+
+@app.get("/api/v1/investments/analyze", tags=["Investments"])
+def analyze_investments(db: Session = Depends(get_db), current_user: models.User = Depends(dependencies.verify_active_subscription)):
+    from agent_core import analyze_portfolio
+    
+    # Fetch investments
+    investments = db.query(models.Investment).filter(models.Investment.tenant_id == current_user.id).all()
+    if not investments:
+        return {"analysis": "You don't have any investments yet. Add some to get a portfolio analysis!"}
+        
+    portfolio_data = []
+    for inv in investments:
+        portfolio_data.append({
+            "name": inv.name,
+            "category": inv.category,
+            "invested_amount": inv.invested_amount,
+            "current_value": inv.current_value,
+            "live_tracking_type": inv.live_tracking_type,
+            "quantity": inv.quantity,
+            "is_sip": inv.is_sip,
+            "sip_amount": inv.sip_amount,
+            "goal_linked": "Yes" if inv.goal_id else "No"
+        })
+        
+    analysis = analyze_portfolio(portfolio_data)
+    return {"analysis": analysis}
+
+@app.get("/api/v1/investments/{investment_id}/transactions", tags=["Investments"])
+def get_investment_transactions(investment_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(dependencies.verify_active_subscription)):
+    inv = db.query(models.Investment).filter(models.Investment.id == investment_id, models.Investment.tenant_id == current_user.id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investment not found")
+    
+    transactions = db.query(models.InvestmentTransaction).filter(models.InvestmentTransaction.investment_id == investment_id).order_by(models.InvestmentTransaction.date.desc()).all()
+    return [{"id": t.id, "type": t.type, "date": t.date, "amount": t.amount, "quantity": t.quantity, "price_per_unit": t.price_per_unit} for t in transactions]
+
 
 @app.post("/api/v1/goals", tags=["Goals"])
 def create_goal(goal: schemas.GoalCreate, db: Session = Depends(get_db), current_user: models.User = Depends(dependencies.verify_active_subscription)):

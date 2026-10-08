@@ -29,3 +29,33 @@ def batch_categorize_transactions(descriptions):
     except Exception as e:
         print(f"Notice: Fallback used for categories ({e})")
         return ["Miscellaneous"] * len(descriptions)
+
+def analyze_portfolio(portfolio_data: list):
+    """
+    Takes a list of investment dictionaries and returns AI rebalancing advice.
+    """
+    if not portfolio_data:
+        return "No investments found to analyze."
+        
+    prompt = f"""
+    You are an expert personal financial advisor and wealth manager. 
+    Review the following user portfolio data:
+    {json.dumps(portfolio_data, indent=2)}
+
+    Provide a concise, professional "Portfolio X-Ray" report. 
+    Format it in clean Markdown. It should include:
+    1. **Asset Allocation Summary**: High-level view of where the money is.
+    2. **Risk & Diversification**: Identify if they are too heavy in one asset or category.
+    3. **Actionable Rebalancing Advice**: What should they consider buying or selling to optimize growth and safety?
+    
+    Keep the tone encouraging but objective. Don't invent data.
+    """
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
+        return response.text.strip()
+    except Exception as e:
+        print(f"Error calling Gemini for portfolio analysis: {e}")
+        return "Sorry, I am currently unable to analyze the portfolio due to a system error."

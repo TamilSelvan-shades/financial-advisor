@@ -104,6 +104,23 @@ class InvestmentCreate(BaseModel):
     category: Optional[str] = "Equity"
     type: Optional[str] = None
     asset_type: Optional[str] = None
+    
+    # New fields
+    ticker_symbol: Optional[str] = None
+    live_tracking_type: Optional[str] = None
+    quantity: Optional[float] = 0.0
+    average_price: Optional[float] = 0.0
+    is_sip: Optional[bool] = False
+    sip_amount: Optional[float] = None
+    sip_date: Optional[int] = None
+    goal_id: Optional[int] = None
+
+class InvestmentTransactionCreate(BaseModel):
+    type: str # BUY, SELL, SIP
+    date: str
+    amount: float
+    quantity: Optional[float] = None
+    price_per_unit: Optional[float] = None
 
 
 # --- Goal Schemas ---

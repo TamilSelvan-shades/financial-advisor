@@ -136,8 +136,35 @@ class Investment(Base):
     category = Column(String, nullable=True)
     invested_amount = Column(Float, default=0.0)
     current_value = Column(Float, default=0.0)
+    
+    # New fields for Live Tracking and SIPs
+    ticker_symbol = Column(String, nullable=True)
+    live_tracking_type = Column(String, nullable=True) # "stock", "mutual_fund", "none"
+    quantity = Column(Float, default=0.0)
+    average_price = Column(Float, default=0.0)
+    
+    is_sip = Column(Boolean, default=False)
+    sip_amount = Column(Float, nullable=True)
+    sip_date = Column(Integer, nullable=True)
+    
+    goal_id = Column(Integer, ForeignKey("goals.id", ondelete="SET NULL"), nullable=True)
 
     tenant = relationship("User", back_populates="investments")
+    transactions = relationship("InvestmentTransaction", back_populates="investment", cascade="all, delete-orphan")
+    goal = relationship("Goal", back_populates="investments")
+
+class InvestmentTransaction(Base):
+    __tablename__ = "investment_transactions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    investment_id = Column(Integer, ForeignKey("investments.id", ondelete="CASCADE"), nullable=False)
+    type = Column(String) # "BUY", "SELL", "SIP"
+    date = Column(String) # YYYY-MM-DD
+    amount = Column(Float)
+    quantity = Column(Float, nullable=True)
+    price_per_unit = Column(Float, nullable=True)
+
+    investment = relationship("Investment", back_populates="transactions")
 
 class Goal(Base):
     __tablename__ = "goals"
@@ -150,6 +177,7 @@ class Goal(Base):
     target_date = Column(String, nullable=True)
 
     tenant = relationship("User", back_populates="goals")
+    investments = relationship("Investment", back_populates="goal")
 
 class Bill(Base):
     __tablename__ = "bills"
