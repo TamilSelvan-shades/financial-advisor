@@ -993,7 +993,8 @@ def get_dashboard_data(db: Session = Depends(get_db), current_user: models.User 
                 amounts.append(inv.current_value)
                 try:
                     res = xirr(dates, amounts)
-                    if res is not None:
+                    import math
+                    if res is not None and not math.isinf(res) and not math.isnan(res):
                         xirr_pct = res * 100
                 except InvalidPaymentsError:
                     pass

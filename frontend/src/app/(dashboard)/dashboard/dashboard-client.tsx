@@ -205,11 +205,47 @@ export default function DashboardClient({ data }: { data: DashboardData | null }
   const uncommittedBalance = data.uncommitted_balance ?? Math.max(0, totalBalance - committedBills - scheduledEmis);
   const burnRateStatus = data.burn_rate_status || (safeToSpendDaily >= 1500 ? "Healthy" : safeToSpendDaily >= 500 ? "Moderate" : "Tight");
 
+  // Extract investments manually logged as expenses (e.g. they categorized it as "Mutual Fund")
+  const investmentCategories = ["investment", "investments", "mutual fund", "mutual funds", "fd", "rd", "gold", "stocks", "equity"];
+  const now = new Date();
+  let activeMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  
+  // Replicate backend fallback logic: if no expenses in current calendar month, use the latest month available
+  const hasCurrentMonthExpenses = (data.expenses || []).some(e => e.date && e.date.startsWith(activeMonthStr));
+  if (!hasCurrentMonthExpenses && data.expenses && data.expenses.length > 0) {
+    const dates = data.expenses.map(e => e.date).filter(Boolean).sort();
+    if (dates.length > 0) {
+      activeMonthStr = dates[dates.length - 1].substring(0, 7);
+    }
+  }
+  
+  const currentMonthInvestedViaExpenses = (data.expenses || []).reduce((sum, exp) => {
+    const expDate = exp.date ? exp.date.substring(0, 7) : "";
+    const isActiveMonth = expDate === activeMonthStr || !expDate;
+    const isInvestCategory = exp.category && investmentCategories.includes(exp.category.toLowerCase().trim());
+    if (isActiveMonth && isInvestCategory) {
+      return sum + Number(exp.amount || 0);
+    }
+    return sum;
+  }, 0);
+
   // Cash Flow Waterfall / Stream breakdown
   const grossInflow = monthlyIncome;
   const fixedCommitments = committedBills + scheduledEmis;
-  const discretionarySpend = Math.max(0, monthlyExpenses - committedBills);
-  const retainedSurplus = grossInflow - monthlyExpenses;
+  
+  // Calculate true expenses by removing the investments logged as expenses
+  const trueMonthlyExpenses = Math.max(0, monthlyExpenses - currentMonthInvestedViaExpenses);
+  const discretionarySpend = Math.max(0, trueMonthlyExpenses - committedBills);
+  const retainedSurplus = grossInflow - trueMonthlyExpenses;
+
+  // Investment-aware savings Breakdown
+  const sipInvestments = (data.investments || []).reduce((sum, inv) => {
+    return sum + (inv.is_sip && inv.sip_amount ? Number(inv.sip_amount) : 0);
+  }, 0);
+  const monthlyInvestments = sipInvestments + currentMonthInvestedViaExpenses;
+  
+  const overallSavings = retainedSurplus; 
+  const uninvestedSavings = retainedSurplus - monthlyInvestments;
 
   // Anomalies count
   const anomalyList = data.anomalies || [];
@@ -769,15 +805,23 @@ export default function DashboardClient({ data }: { data: DashboardData | null }
                           title={`Discretionary Spend: ${formatCurrency(discretionarySpend)}`}
                         />
                         <div 
-                          style={{ width: `${grossInflow > 0 ? Math.min(100, Math.max(8, (Math.max(0, retainedSurplus) / grossInflow) * 100)) : 100}%` }}
+                          style={{ width: `${grossInflow > 0 ? Math.min(100, Math.max(4, (monthlyInvestments / grossInflow) * 100)) : 0}%` }}
+                          className="bg-emerald-500 transition-all duration-500" 
+                          title={`Invested Savings (SIPs): ${formatCurrency(monthlyInvestments)}`}
+                        />
+                        <div 
+                          style={{ width: `${grossInflow > 0 ? Math.min(100, Math.max(4, (Math.max(0, uninvestedSavings) / grossInflow) * 100)) : 0}%` }}
                           className="bg-indigo-600 transition-all duration-500" 
-                          title={`Retained Net Surplus: ${formatCurrency(retainedSurplus)}`}
+                          title={`Uninvested Cash: ${formatCurrency(uninvestedSavings)}`}
                         />
                       </div>
                       <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium px-1">
                         <span>Total Inflow: <PrivacyValue value={formatCurrency(grossInflow)} /></span>
-                        <span>Savings Rate: <strong className="text-slate-800">{grossInflow > 0 ? `${Math.max(0, Math.round((retainedSurplus / grossInflow) * 100))}%` : "0%"}</strong></span>
-                        <span>Total Outflow: <PrivacyValue value={formatCurrency(monthlyExpenses)} /></span>
+                        <div className="flex gap-4">
+                          <span>Overall Savings: <strong className={overallSavings >= 0 ? "text-emerald-700" : "text-rose-700"}>{grossInflow > 0 ? `${Math.round((overallSavings / grossInflow) * 100)}%` : "0%"}</strong></span>
+                          <span>Cash Savings: <strong className={uninvestedSavings >= 0 ? "text-indigo-700" : "text-rose-700"}>{grossInflow > 0 ? `${Math.round((uninvestedSavings / grossInflow) * 100)}%` : "0%"}</strong></span>
+                        </div>
+                        <span>Total Outflow: <PrivacyValue value={formatCurrency(trueMonthlyExpenses)} /></span>
                       </div>
                     </div>
 
@@ -824,10 +868,10 @@ export default function DashboardClient({ data }: { data: DashboardData | null }
                           <Sparkles size={13} className="text-indigo-600" />
                         </div>
                         <div className="text-lg font-bold text-indigo-950">
-                          <PrivacyValue value={formatCurrency(retainedSurplus)} />
+                          <PrivacyValue value={formatCurrency(overallSavings)} />
                         </div>
                         <span className="text-[10px] text-indigo-700 block">
-                          {retainedSurplus >= 0 ? "Compounding Growth" : "Deficit (Drain)"}
+                          Invested: {formatCurrency(monthlyInvestments)} | Cash: {formatCurrency(uninvestedSavings)}
                         </span>
                       </div>
                     </div>
@@ -1255,8 +1299,10 @@ export default function DashboardClient({ data }: { data: DashboardData | null }
                     Visualizing how your monthly inflow is allocated across fixed obligations, discretionary spend, and wealth retention.
                   </CardDescription>
                 </div>
-                <div className="text-xs font-bold text-slate-700 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shrink-0">
-                  Net Savings Rate: {grossInflow > 0 ? `${Math.max(0, Math.round((retainedSurplus / grossInflow) * 100))}%` : "0%"}
+                <div className="text-xs font-bold text-slate-700 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shrink-0 flex items-center gap-3">
+                  <span>Overall Savings: {grossInflow > 0 ? `${Math.round((overallSavings / grossInflow) * 100)}%` : "0%"}</span>
+                  <span className="w-px h-3 bg-slate-300"></span>
+                  <span>Cash Rate: {grossInflow > 0 ? `${Math.round((uninvestedSavings / grossInflow) * 100)}%` : "0%"}</span>
                 </div>
               </div>
             </CardHeader>
@@ -1275,9 +1321,14 @@ export default function DashboardClient({ data }: { data: DashboardData | null }
                     title={`Discretionary Spend: ${formatCurrency(discretionarySpend)}`}
                   />
                   <div 
-                    style={{ width: `${grossInflow > 0 ? Math.min(100, Math.max(8, (Math.max(0, retainedSurplus) / grossInflow) * 100)) : 100}%` }}
+                    style={{ width: `${grossInflow > 0 ? Math.min(100, Math.max(4, (monthlyInvestments / grossInflow) * 100)) : 0}%` }}
+                    className="bg-emerald-500 transition-all duration-500" 
+                    title={`Invested Savings (SIPs): ${formatCurrency(monthlyInvestments)}`}
+                  />
+                  <div 
+                    style={{ width: `${grossInflow > 0 ? Math.min(100, Math.max(4, (Math.max(0, uninvestedSavings) / grossInflow) * 100)) : 100}%` }}
                     className="bg-indigo-600 transition-all duration-500" 
-                    title={`Retained Net Surplus: ${formatCurrency(retainedSurplus)}`}
+                    title={`Uninvested Cash: ${formatCurrency(uninvestedSavings)}`}
                   />
                 </div>
                 <div className="flex items-center justify-between text-xs text-slate-500 font-medium px-1">
@@ -1331,10 +1382,10 @@ export default function DashboardClient({ data }: { data: DashboardData | null }
                     <Sparkles size={14} className={retainedSurplus >= 0 ? "text-indigo-600" : "text-red-500"} />
                   </div>
                   <div className={`text-xl font-bold ${retainedSurplus >= 0 ? "text-indigo-950" : "text-red-900"}`}>
-                    <PrivacyValue value={formatCurrency(retainedSurplus)} />
+                    <PrivacyValue value={formatCurrency(overallSavings)} />
                   </div>
                   <span className={`text-xs ${retainedSurplus >= 0 ? "text-indigo-700" : "text-red-600"}`}>
-                    {retainedSurplus >= 0 ? "Compounding / surplus" : "Deficit (draining balance)"}
+                    Invested: {formatCurrency(monthlyInvestments)} | Cash: {formatCurrency(uninvestedSavings)}
                   </span>
                 </div>
               </div>
