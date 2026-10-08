@@ -19,3 +19,5 @@ razorpay
 pypdf>=5.0.0
 alembic
 email-validator
+pyxirr
+yfinance
