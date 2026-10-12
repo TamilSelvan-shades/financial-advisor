@@ -451,11 +451,11 @@ def process_with_gemini(user_text: str, chat_id: str):
     4. Inquire about pending dues or upcoming bills (e.g. "what bills do I have?", "any upcoming dues?", "show pending bills"):
        {{"type": "list_bills"}}
 
-    5. Logging a general expense (e.g. "spent 250 on coffee", "paid 1500 for groceries", "bought shoes for 3500"):
-       {{"type": "log_expense", "amount": 250.0, "description": "coffee", "category": "Food & Dining", "account": "ICICI Savings Account"}}
+    5. Logging a general expense (e.g. "spent 250 on coffee", "yesterday spent 1500 for groceries from HDFC", "bought shoes for 3500 on 2026-10-10 using SBI", "spent 200 on fuel 2 days ago"):
+       {{"type": "log_expense", "amount": 250.0, "description": "coffee", "category": "Food & Dining", "account": "ICICI Savings Account", "date": "YYYY-MM-DD"}}
 
-    6. Logging an income (e.g. "got 50000 salary", "received 2000 dividend", "freelance income 15000"):
-       {{"type": "log_income", "amount": 50000.0, "description": "salary", "category": "Salary", "account": "ICICI Savings Account"}}
+    6. Logging an income (e.g. "got 50000 salary", "received 2000 dividend yesterday in SBI", "freelance income 15000 on 2026-10-05 into HDFC"):
+       {{"type": "log_income", "amount": 50000.0, "description": "salary", "category": "Salary", "account": "ICICI Savings Account", "date": "YYYY-MM-DD"}}
 
     7. What-If Scenario simulation (e.g. "Can I afford a ₹25,000 vacation this weekend?", "What happens if I buy a laptop for ₹80,000 on a 6-month EMI?", "What if I prepay ₹50,000 on my car loan?"):
        {{"type": "what_if_scenario", "scenario_type": "affordability" | "emi" | "prepayment", "amount": 25000.0, "tenure_months": 6, "annual_interest_rate": 0.0, "name": "vacation / laptop / car loan"}}
@@ -592,10 +592,13 @@ def process_with_gemini(user_text: str, chat_id: str):
             desc = data.get("description", "Expense").capitalize()
             cat = data.get("category", "General").capitalize()
             acc = data.get("account", "ICICI Savings Account")
+            exp_date = str(data.get("date") or today).strip()
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", exp_date):
+                exp_date = today
 
             db.add(
                 models.Expense(
-                    date=today,
+                    date=exp_date,
                     description=desc,
                     amount=amt,
                     category=cat,
@@ -605,7 +608,7 @@ def process_with_gemini(user_text: str, chat_id: str):
             )
             db.commit()
 
-            reply = f"✅ *Logged Expense:*\n• {desc}: ₹{amt:,.2f} ({cat})\n• Account: {acc}"
+            reply = f"✅ *Logged Expense:*\n• {desc}: ₹{amt:,.2f} ({cat})\n• Account: {acc}\n• Date: {exp_date}"
             warning = check_budget_threshold_alert(db, cat, tenant_id)
             if warning:
                 reply += f"\n\n{warning}"
@@ -618,10 +621,13 @@ def process_with_gemini(user_text: str, chat_id: str):
             desc = data.get("description", "Income").capitalize()
             cat = data.get("category", "Salary").capitalize()
             acc = data.get("account", "ICICI Savings Account")
+            inc_date = str(data.get("date") or today).strip()
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", inc_date):
+                inc_date = today
 
             db.add(
                 models.Income(
-                    date=today,
+                    date=inc_date,
                     description=desc,
                     amount=amt,
                     category=cat,
@@ -631,7 +637,7 @@ def process_with_gemini(user_text: str, chat_id: str):
             )
             db.commit()
             db.close()
-            return f"💰 *Logged Income:*\n• {desc}: ₹{amt:,.2f} ({cat})\n• Account: {acc}", None
+            return f"💰 *Logged Income:*\n• {desc}: ₹{amt:,.2f} ({cat})\n• Account: {acc}\n• Date: {inc_date}", None
 
         # 7. WHAT-IF SCENARIOS
         elif intent == "what_if_scenario":
