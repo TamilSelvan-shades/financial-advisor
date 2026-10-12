@@ -1,0 +1,31 @@
+name: Automated 8:00 AM Morning Pulse & Keep-Alive
+
+on:
+  schedule:
+    # 02:30 UTC is 08:00 AM IST (Indian Standard Time) every day
+    - cron: '30 2 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  daily-morning-pulse:
+    name: Dispatch 8:00 AM Morning Financial Pulse
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Financial Health Check & Telegram Alert
+        run: |
+          echo "Sending 8:00 AM briefing trigger to Financial Advisor..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://financial-advisor-t2ch.onrender.com/api/v1/trigger-daily-alert" \
+            -H "X-API-Key: ${{ secrets.API_SECRET_KEY || 'my_secure_dashboard_key_123' }}" \
+            -H "Content-Type: application/json")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          
+          echo "Server responded with HTTP $HTTP_CODE"
+          echo "Response: $BODY"
+          
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "Failed to dispatch alert."
+            exit 1
+          fi
+          echo "Daily Morning Pulse successfully triggered!"

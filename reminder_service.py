@@ -1007,17 +1007,31 @@ def send_tenant_daily_briefing(db: Session, tenant_id: str) -> Dict[str, Any]:
 
     try:
         resp = requests.post(url, json=payload, timeout=10)
-        res_json = resp.json()
+        res_json = resp.json() if resp.content else {}
         if res_json.get("ok"):
             return {
                 "success": True,
                 "message": "Daily briefing dispatched successfully to Telegram with interactive action buttons.",
                 "chat_id": user.telegram_chat_id,
             }
-        else:
-            return {
-                "success": False,
-                "message": f"Telegram API error: {res_json.get('description')}",
-            }
+
+        # If Markdown entity parsing failed, retry immediately as plain text
+        err_desc = str(res_json.get("description", "")).lower()
+        if resp.status_code == 400 or "can't parse entities" in err_desc or "parse" in err_desc:
+            payload.pop("parse_mode", None)
+            retry_resp = requests.post(url, json=payload, timeout=10)
+            retry_json = retry_resp.json() if retry_resp.content else {}
+            if retry_json.get("ok"):
+                return {
+                    "success": True,
+                    "message": "Daily briefing dispatched (plain text fallback).",
+                    "chat_id": user.telegram_chat_id,
+                }
+            err_desc = retry_json.get("description", err_desc)
+
+        return {
+            "success": False,
+            "message": f"Telegram API error: {err_desc}",
+        }
     except Exception as e:
         return {"success": False, "message": f"Failed to deliver message: {str(e)}"}

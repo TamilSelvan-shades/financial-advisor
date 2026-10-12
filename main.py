@@ -240,7 +240,14 @@ def send_telegram_alert(message_text: str, chat_id: str, reply_markup: dict = No
     if reply_markup:
         payload["reply_markup"] = reply_markup
     try:
-        requests.post(url, json=payload, timeout=10)
+        resp = requests.post(url, json=payload, timeout=10)
+        res_json = resp.json() if resp.content else {}
+        if not res_json.get("ok"):
+            err_desc = str(res_json.get("description", "")).lower()
+            if resp.status_code == 400 or "can't parse entities" in err_desc or "parse" in err_desc:
+                # Fallback to plain text if Markdown formatting causes Telegram API 400 rejection
+                payload.pop("parse_mode", None)
+                requests.post(url, json=payload, timeout=10)
     except Exception as e:
         print(f"Failed to dispatch Telegram alert: {e}")
 
@@ -687,10 +694,230 @@ scheduler = BackgroundScheduler()
 
 telegram_stop_event = threading.Event()
 
+def handle_telegram_update(update: dict):
+    """
+    Unified Telegram update processor handling:
+    1. Callback Queries (inline button taps: settle bills, daily status, pending bills, track discovered)
+    2. Start command linking (/start <token>)
+    3. Natural language commands & queries (status, bills, expense logging, what-if)
+    4. Voice notes (voice ledger transcription & intent execution)
+    5. Receipt photos (Gemini OCR scan & ledger auto-logging)
+    Shared by both Webhook and Polling modes.
+    """
+    if not update:
+        return
+
+    # 1. Handle Inline Keyboard Callback Queries (Button Taps)
+    cb = update.get("callback_query")
+    if cb:
+        cb_id = cb.get("id")
+        cb_chat_id = str(
+            cb.get("message", {}).get("chat", {}).get("id", "")
+            or cb.get("from", {}).get("id", "")
+        )
+        cb_data = str(cb.get("data", ""))
+        telegram_listener.answer_callback_query(cb_id, "Processing...")
+        db = SessionLocal()
+        try:
+            u = telegram_listener.get_user_for_chat(db, cb_chat_id)
+            if u:
+                tenant_id = str(u.id)
+                if cb_data.startswith("settle_bill:"):
+                    b_id = int(cb_data.split(":")[1])
+                    res = reminder_service.settle_bill_with_expense(
+                        db, tenant_id, b_id, auto_log_expense=True
+                    )
+                    if res.get("success"):
+                        b_obj = res["bill"]
+                        send_telegram_alert(
+                            f"✅ *Settled & Logged:* '{b_obj['name']}' (₹{b_obj['amount']:,.2f}) marked as Paid!\n• Expense recorded in ledger.",
+                            cb_chat_id,
+                        )
+                elif cb_data == "daily_status":
+                    st_data = reminder_service.get_tenant_reminders_and_status(db, tenant_id)
+                    u_name = u.email.split("@")[0].capitalize() if u.email else ""
+                    msg = reminder_service.format_daily_status_telegram_message(st_data, u_name)
+                    actionable_bills = st_data["bills"].get("overdue_bills", []) + st_data["bills"].get("due_today_bills", [])
+                    markup = reminder_service.build_bills_inline_keyboard(actionable_bills)
+                    send_telegram_alert(msg, cb_chat_id, reply_markup=markup)
+                elif cb_data == "pending_bills":
+                    st_data = reminder_service.get_tenant_reminders_and_status(db, tenant_id)
+                    msg, markup = reminder_service.format_pending_bills_telegram_message(st_data)
+                    send_telegram_alert(msg, cb_chat_id, reply_markup=markup)
+                elif cb_data.startswith("track_disc:"):
+                    parts = cb_data.split(":")
+                    disc_name = str(parts[1]).strip()
+                    disc_amt = float(parts[2])
+                    disc_day = int(parts[3])
+                    res = reminder_service.add_recurring_bill(
+                        db=db,
+                        tenant_id=tenant_id,
+                        name=disc_name,
+                        amount=disc_amt,
+                        due_day=disc_day,
+                    )
+                    b_obj = res["bill"]
+                    send_telegram_alert(
+                        f"✅ *AI Discovered Bill Tracked!*\n• Bill: *{b_obj['name']}*\n• Amount: ₹{b_obj['amount']:,.2f}/month\n• Due Day: Day {b_obj['due_day']} of every month\n• Status: Pending",
+                        cb_chat_id,
+                    )
+        except Exception as err:
+            print(f"[Telegram Update] Callback error: {err}")
+        finally:
+            db.close()
+        return
+
+    # 2. Handle Messages
+    msg = update.get("message", {})
+    sender_id = str(msg.get("chat", {}).get("id", "") or msg.get("from", {}).get("id", ""))
+    text = msg.get("text", "")
+    voice = msg.get("voice")
+    photo = msg.get("photo")
+
+    if not sender_id:
+        return
+
+    db = SessionLocal()
+    try:
+        user = db.query(models.User).filter(models.User.telegram_chat_id == sender_id).first()
+
+        # Check /start <token> linking
+        if text and text.strip().startswith("/start"):
+            parts = text.strip().split()
+            target_user = None
+            if len(parts) > 1:
+                token = parts[1].strip()
+                target_user = db.query(models.User).filter(models.User.telegram_link_token == token).first()
+
+            # If no token in command, or token expired, link user who recently initiated Telegram connect
+            if not target_user and not user:
+                target_user = (
+                    db.query(models.User)
+                    .filter(models.User.telegram_link_token.isnot(None))
+                    .order_by(models.User.id.desc())
+                    .first()
+                )
+
+            if target_user:
+                existing_user = db.query(models.User).filter(models.User.telegram_chat_id == sender_id).first()
+                if existing_user and existing_user.id != target_user.id:
+                    existing_user.telegram_chat_id = None
+
+                target_user.telegram_chat_id = sender_id
+                target_user.telegram_link_token = None
+                db.commit()
+                send_telegram_alert(
+                    "🎉 *Telegram Connected Successfully!*\n\n"
+                    "Your Telegram account is now linked to your Personal AI Financial Advisor.\n\n"
+                    "You will receive your 8:00 AM Morning Pulse, overdue bill alerts, and safe-to-spend runways right here.\n\n"
+                    "💬 *Try replying:* *STATUS*, *BILLS*, or *RADAR* to explore.",
+                    sender_id,
+                )
+                print(f"[Telegram Update] Successfully linked Telegram chat {sender_id} to user {target_user.email}")
+                return
+            elif not user:
+                send_telegram_alert(
+                    f"👋 Hello! Your Telegram Chat ID is: `{sender_id}`\n\n"
+                    "To link your account, either:\n"
+                    "1. Click 'Connect Telegram' from your Financial Dashboard, or\n"
+                    f"2. Enter Chat ID `{sender_id}` in your Dashboard Notification Settings under 'Advanced: Enter Telegram Chat ID'.",
+                    sender_id,
+                )
+                return
+
+        if not user:
+            print(f"[Telegram Update] Unlinked message from {sender_id}: {text}")
+            send_telegram_alert(
+                f"👋 Hello! Your Telegram Chat ID is: `{sender_id}`\n\n"
+                "Please connect your account from your Financial Dashboard to chat with your AI Advisor.",
+                sender_id,
+            )
+            return
+
+        # 3. TEXT MESSAGE
+        if text:
+            async_process_telegram_message(text, str(user.id), sender_id)
+            return
+
+        # 4. VOICE NOTE
+        if voice:
+            try:
+                file_id = voice.get("file_id")
+                f_info = requests.get(
+                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}",
+                    timeout=10,
+                ).json()
+                if f_info.get("ok"):
+                    f_path = f_info["result"]["file_path"]
+                    audio_bytes = requests.get(
+                        f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{f_path}",
+                        timeout=15,
+                    ).content
+                    res = voice_ledger.process_audio_voice_to_ledger(audio_bytes, mime_type="audio/ogg")
+                    if res.get("success"):
+                        transcript = res.get("transcript", "").strip()
+                        reply, markup = telegram_listener.process_with_gemini(transcript, sender_id)
+                        send_telegram_alert(
+                            f"🎙️ *Voice Note Heard:* \"{transcript}\"\n\n{reply}",
+                            sender_id,
+                            reply_markup=markup,
+                        )
+                    else:
+                        send_telegram_alert(f"⚠️ Could not parse voice note: {res.get('error')}", sender_id)
+            except Exception as ve:
+                print(f"[Telegram Update] Voice processing error: {ve}")
+
+        # 5. RECEIPT PHOTO
+        if photo:
+            try:
+                file_id = photo[-1]["file_id"]
+                f_info = requests.get(
+                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}",
+                    timeout=10,
+                ).json()
+                if f_info.get("ok"):
+                    f_path = f_info["result"]["file_path"]
+                    img_bytes = requests.get(
+                        f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{f_path}",
+                        timeout=15,
+                    ).content
+                    res = receipt_scanner.scan_receipt_image(img_bytes, mime_type="image/jpeg")
+                    if res.get("success"):
+                        data = res["data"]
+                        amt = float(data.get("total_amount") or 0.0)
+                        cat = str(data.get("category") or "Utilities").capitalize()
+                        dt = data.get("receipt_date") or datetime.date.today().strftime("%Y-%m-%d")
+                        db.add(
+                            models.Expense(
+                                date=dt,
+                                description=f"Receipt: {data.get('merchant', 'Expense')}",
+                                amount=amt,
+                                category=cat,
+                                account="ICICI Savings Account",
+                                remarks=f"Telegram Receipt OCR: {data.get('merchant')}",
+                                tenant_id=user.id,
+                            )
+                        )
+                        db.commit()
+                        send_telegram_alert(
+                            f"🧾 *Receipt OCR Scanned & Logged:*\n• Merchant: {data.get('merchant')}\n• Total: ₹{amt:,.2f} ({cat})\n• Tax/GST: ₹{data.get('tax_amount', 0):,.2f}",
+                            sender_id,
+                        )
+                    else:
+                        send_telegram_alert(f"⚠️ Could not parse receipt: {res.get('error')}", sender_id)
+            except Exception as pe:
+                print(f"[Telegram Update] Photo processing error: {pe}")
+
+    except Exception as m_err:
+        print(f"[Telegram Update] Message processing error: {m_err}")
+    finally:
+        db.close()
+
+
 def run_telegram_polling():
     """
     Local development Telegram poller using getUpdates.
-    Automatically clears stale webhooks and processes /start tokens, text messages, and button taps.
+    Used when TELEGRAM_WEBHOOK_URL is not set.
     """
     if not TELEGRAM_BOT_TOKEN:
         print("[Telegram Poller] TELEGRAM_BOT_TOKEN not configured. Skipping polling.")
@@ -720,119 +947,14 @@ def run_telegram_polling():
             resp = requests.get(url, timeout=15).json()
             if not resp.get("ok"):
                 if resp.get("error_code") == 409:
-                    requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/deleteWebhook", timeout=10)
-                time.sleep(2)
+                    time.sleep(3)
+                else:
+                    time.sleep(2)
                 continue
 
             for update in resp.get("result", []):
                 last_update_id = update["update_id"]
-
-                # 1. Handle Inline Keyboard Callback Queries (Button Taps)
-                cb = update.get("callback_query")
-                if cb:
-                    cb_id = cb.get("id")
-                    cb_chat_id = str(
-                        cb.get("message", {}).get("chat", {}).get("id", "")
-                        or cb.get("from", {}).get("id", "")
-                    )
-                    cb_data = str(cb.get("data", ""))
-                    telegram_listener.answer_callback_query(cb_id, "Processing...")
-                    db = SessionLocal()
-                    try:
-                        u = telegram_listener.get_user_for_chat(db, cb_chat_id)
-                        if u:
-                            tenant_id = str(u.id)
-                            if cb_data.startswith("settle_bill:"):
-                                b_id = int(cb_data.split(":")[1])
-                                res = reminder_service.settle_bill_with_expense(
-                                    db, tenant_id, b_id, auto_log_expense=True
-                                )
-                                if res.get("success"):
-                                    b_obj = res["bill"]
-                                    send_telegram_alert(
-                                        f"✅ *Settled & Logged:* '{b_obj['name']}' (₹{b_obj['amount']:,.2f}) marked as Paid!\n• Expense recorded in ledger.",
-                                        cb_chat_id,
-                                    )
-                            elif cb_data == "daily_status":
-                                st_data = reminder_service.get_tenant_reminders_and_status(db, tenant_id)
-                                u_name = u.email.split("@")[0].capitalize() if u.email else ""
-                                msg = reminder_service.format_daily_status_telegram_message(st_data, u_name)
-                                actionable_bills = st_data["bills"].get("overdue_bills", []) + st_data["bills"].get("due_today_bills", [])
-                                markup = reminder_service.build_bills_inline_keyboard(actionable_bills)
-                                send_telegram_alert(msg, cb_chat_id, reply_markup=markup)
-                            elif cb_data == "pending_bills":
-                                st_data = reminder_service.get_tenant_reminders_and_status(db, tenant_id)
-                                msg, markup = reminder_service.format_pending_bills_telegram_message(st_data)
-                                send_telegram_alert(msg, cb_chat_id, reply_markup=markup)
-                    except Exception as err:
-                        print(f"[Telegram Poller] Callback error: {err}")
-                    finally:
-                        db.close()
-                    continue
-
-                # 2. Handle Messages
-                msg = update.get("message", {})
-                sender_id = str(msg.get("chat", {}).get("id", "") or msg.get("from", {}).get("id", ""))
-                text = msg.get("text", "")
-
-                if sender_id and text:
-                    db = SessionLocal()
-                    try:
-                        user = db.query(models.User).filter(models.User.telegram_chat_id == sender_id).first()
-
-                        # Check /start <token> linking
-                        if text.strip().startswith("/start"):
-                            parts = text.strip().split()
-                            target_user = None
-                            if len(parts) > 1:
-                                token = parts[1].strip()
-                                target_user = db.query(models.User).filter(models.User.telegram_link_token == token).first()
-
-                            # If no token in command, or token expired, link user who recently initiated Telegram connect
-                            if not target_user and not user:
-                                target_user = (
-                                    db.query(models.User)
-                                    .filter(models.User.telegram_link_token.isnot(None))
-                                    .order_by(models.User.id.desc())
-                                    .first()
-                                )
-
-                            if target_user:
-                                target_user.telegram_chat_id = sender_id
-                                target_user.telegram_link_token = None
-                                db.commit()
-                                send_telegram_alert(
-                                    "🎉 *Telegram Connected Successfully!*\n\n"
-                                    "Your Telegram account is now linked to your Personal AI Financial Advisor.\n\n"
-                                    "You will receive your 8:00 AM Morning Pulse, overdue bill alerts, and safe-to-spend runways right here.\n\n"
-                                    "💬 *Try replying:* *STATUS*, *BILLS*, or *RADAR* to explore.",
-                                    sender_id,
-                                )
-                                print(f"[Telegram Poller] Successfully linked Telegram chat {sender_id} to user {target_user.email}")
-                                continue
-                            elif not user:
-                                send_telegram_alert(
-                                    f"👋 Hello! Your Telegram Chat ID is: `{sender_id}`\n\n"
-                                    "To link your account, either:\n"
-                                    "1. Click 'Connect Telegram' from your Financial Dashboard, or\n"
-                                    f"2. Enter Chat ID `{sender_id}` in your Dashboard Notification Settings under 'Advanced: Enter Telegram Chat ID'.",
-                                    sender_id,
-                                )
-                                continue
-
-                        if user:
-                            # Process message asynchronously in background thread
-                            threading.Thread(
-                                target=async_process_telegram_message,
-                                args=(text, str(user.id), sender_id),
-                                daemon=True,
-                            ).start()
-                        else:
-                            print(f"[Telegram Poller] Unlinked message from {sender_id}: {text}")
-                    except Exception as m_err:
-                        print(f"[Telegram Poller] Message processing error: {m_err}")
-                    finally:
-                        db.close()
+                threading.Thread(target=handle_telegram_update, args=(update,), daemon=True).start()
 
         except Exception as poll_err:
             if not telegram_stop_event.is_set():
@@ -851,13 +973,32 @@ async def lifespan(app: FastAPI):
     )
     scheduler.start()
 
-    # Start Telegram background polling worker for local development if webhook is not configured
+    # Synchronize Telegram configuration
     telegram_stop_event.clear()
-    if not os.getenv("TELEGRAM_WEBHOOK_URL"):
+    webhook_url = os.getenv("TELEGRAM_WEBHOOK_URL")
+    if webhook_url and TELEGRAM_BOT_TOKEN:
+        print(f"[Lifespan] TELEGRAM_WEBHOOK_URL detected: {webhook_url}. Synchronizing webhook with Telegram...")
+        try:
+            wh_payload = {
+                "url": webhook_url,
+                "allowed_updates": ["message", "callback_query"],
+            }
+            if TELEGRAM_WEBHOOK_SECRET:
+                wh_payload["secret_token"] = TELEGRAM_WEBHOOK_SECRET
+            set_res = requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook",
+                json=wh_payload,
+                timeout=10,
+            ).json()
+            if set_res.get("ok"):
+                print(f"[Lifespan] ✅ Telegram Webhook registered to: {webhook_url}")
+            else:
+                print(f"[Lifespan] ⚠️ Telegram setWebhook response: {set_res}")
+        except Exception as wh_err:
+            print(f"[Lifespan] ⚠️ Error setting Telegram Webhook: {wh_err}")
+    elif TELEGRAM_BOT_TOKEN:
         poller_thread = threading.Thread(target=run_telegram_polling, daemon=True)
         poller_thread.start()
-    else:
-        print("[Lifespan] TELEGRAM_WEBHOOK_URL found. Skipping local poller.")
 
     # Auto-link local dev Telegram Chat ID if configured in .env
     env_chat_id = os.getenv("TELEGRAM_CHAT_ID")
@@ -2841,9 +2982,39 @@ def healthz(db: Session = Depends(get_db)):
         raise HTTPException(status_code=503, detail="Database connection failed")
 
 @app.post("/api/v1/trigger-daily-alert", tags=["System"])
-def trigger_alert_now(background_tasks: BackgroundTasks, current_user: models.User = Depends(dependencies.verify_active_subscription)):
+def trigger_alert_now(
+    background_tasks: BackgroundTasks,
+    x_api_key: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+):
+    """
+    Triggers the scheduled 8:00 AM financial health check & morning pulse immediately.
+    Can be called by:
+    1. System Automation / External Cron (e.g. GitHub Actions, cron-job.org) via X-API-Key
+    2. Authenticated SaaS users via Bearer token
+    """
+    authorized = False
+    system_key = os.getenv("API_SECRET_KEY") or os.getenv("TELEGRAM_WEBHOOK_SECRET")
+    if system_key and x_api_key and x_api_key.strip() == system_key.strip():
+        authorized = True
+    elif authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        try:
+            payload = auth.decode_access_token(token)
+            if payload.get("sub"):
+                authorized = True
+        except Exception:
+            pass
+
+    if not authorized:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized: valid X-API-Key or Bearer token required.",
+        )
+
     background_tasks.add_task(scheduled_financial_health_check)
-    return {"message": "Health check scheduled in background."}
+    return {"message": "Health check scheduled in background.", "status": "dispatched"}
 
 # --- Secured Telegram Webhook ---
 
@@ -2851,9 +3022,14 @@ def trigger_alert_now(background_tasks: BackgroundTasks, current_user: models.Us
 async def telegram_webhook(
     request: Request,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
     x_telegram_bot_api_secret_token: Optional[str] = Header(None),
 ):
+    """
+    Telegram Bot Webhook Receiver.
+    Directly triggered by Telegram whenever any user sends a message, taps an inline button,
+    sends a voice note, or shares a receipt photo.
+    Wakes up sleeping cloud instances (Render) instantly.
+    """
     if TELEGRAM_WEBHOOK_SECRET and x_telegram_bot_api_secret_token != TELEGRAM_WEBHOOK_SECRET:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -2862,59 +3038,9 @@ async def telegram_webhook(
 
     try:
         payload = await request.json()
-        message = payload.get("message", {})
-        sender_id = str(message.get("from", {}).get("id", ""))
-        text = message.get("text", "")
-
-        if sender_id and text:
-            user = db.query(models.User).filter(models.User.telegram_chat_id == sender_id).first()
-
-            # Auto-link if /start provided
-            if text.strip().startswith("/start"):
-                parts = text.strip().split()
-                target_user = None
-                if len(parts) > 1:
-                    token = parts[1].strip()
-                    target_user = db.query(models.User).filter(models.User.telegram_link_token == token).first()
-
-                if not target_user:
-                    target_user = (
-                        db.query(models.User)
-                        .filter(models.User.telegram_link_token.isnot(None))
-                        .order_by(models.User.id.desc())
-                        .first()
-                    )
-
-                if target_user:
-                    # Clear it from any existing user to prevent UniqueViolation when swapping accounts
-                    existing_user = db.query(models.User).filter(models.User.telegram_chat_id == sender_id).first()
-                    if existing_user and existing_user.id != target_user.id:
-                        existing_user.telegram_chat_id = None
-                        
-                    target_user.telegram_chat_id = sender_id
-                    target_user.telegram_link_token = None
-                    db.commit()
-                    notification_dispatcher.send_telegram_alert_direct(
-                        chat_id=sender_id,
-                        text="🎉 *Telegram Connected Successfully!*\n\nYour account is now linked to your Personal AI Financial Advisor. You'll receive your 8:00 AM Morning Pulse and due reminders right here.",
-                    )
-                    return {"status": "linked"}
-                elif not user:
-                    send_telegram_alert(
-                        f"👋 Hello! Your Telegram Chat ID is: `{sender_id}`\n\n"
-                        "To link your account, either:\n"
-                        "1. Click 'Connect Telegram' from your Financial Dashboard, or\n"
-                        f"2. Enter Chat ID `{sender_id}` in your Dashboard Notification Settings under 'Advanced: Enter Telegram Chat ID'.",
-                        sender_id,
-                    )
-                    return {"status": "unlinked_notified"}
-
-            if user:
-                background_tasks.add_task(async_process_telegram_message, text, str(user.id), sender_id)
-            else:
-                print(f"Unauthorized Telegram webhook from {sender_id}")
+        background_tasks.add_task(handle_telegram_update, payload)
     except Exception as e:
-        print(f"Webhook processing error: {e}")
+        print(f"[Telegram Webhook] Error queueing update: {e}")
 
     return {"status": "received"}
 
