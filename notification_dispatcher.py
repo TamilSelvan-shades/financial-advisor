@@ -62,11 +62,22 @@ def send_telegram_alert_direct(
 
     try:
         resp = requests.post(url, json=payload, timeout=10)
-        res_json = resp.json()
+        res_json = resp.json() if resp.content else {}
         if res_json.get("ok"):
             logger.info(f"Telegram alert sent to chat {actual_chat_id}")
             return {"status": "sent", "chat_id": actual_chat_id}
+
         err_msg = res_json.get("description", "Unknown error")
+        # If Telegram rejected markdown entities, retry immediately as plain text
+        if resp.status_code == 400 or "can't parse entities" in err_msg.lower() or "parse" in err_msg.lower():
+            payload.pop("parse_mode", None)
+            retry_resp = requests.post(url, json=payload, timeout=10)
+            retry_json = retry_resp.json() if retry_resp.content else {}
+            if retry_json.get("ok"):
+                logger.info(f"Telegram alert delivered to chat {actual_chat_id} (plain text fallback)")
+                return {"status": "sent", "chat_id": actual_chat_id, "fallback": "plain_text"}
+            err_msg = retry_json.get("description", err_msg)
+
         logger.error(f"Telegram API delivery error: {err_msg}")
         return {"status": "error", "error": err_msg}
     except Exception as e:

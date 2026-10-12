@@ -47,7 +47,14 @@ def send_message(text: str, chat_id: str = None, reply_markup: dict = None):
     if reply_markup:
         payload["reply_markup"] = reply_markup
     try:
-        requests.post(url, json=payload, timeout=10)
+        resp = requests.post(url, json=payload, timeout=10)
+        res_json = resp.json() if resp.content else {}
+        if not res_json.get("ok"):
+            err_desc = str(res_json.get("description", "")).lower()
+            if resp.status_code == 400 or "can't parse entities" in err_desc or "parse" in err_desc:
+                # Retry in plain text if Markdown format fails
+                payload.pop("parse_mode", None)
+                requests.post(url, json=payload, timeout=10)
     except Exception as e:
         print(f"Failed to send Telegram message: {e}")
 
