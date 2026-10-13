@@ -320,6 +320,13 @@ def scheduled_financial_health_check():
             except Exception as u_err:
                 print(f"Error generating daily briefing for tenant {user.id}: {u_err}")
                 reports.append({"user": user.email, "error": str(u_err)})
+    except Exception as e:
+        print(f"Database error during financial health check: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        reports.append({"error": f"Database query failed: {str(e)}"})
     finally:
         db.close()
     return reports
