@@ -112,29 +112,32 @@ def dispatch_daily_briefing(
 
     # 1. WhatsApp Delivery
     if should_send_to_channel(user, "whatsapp") and user.whatsapp_phone_number:
-        wa_text, quick_replies = whatsapp_service.format_daily_status_whatsapp_message(status_data, user_name)
-        wa_res = whatsapp_service.send_whatsapp_message(
-            to_phone=user.whatsapp_phone_number,
-            message=wa_text,
-            quick_replies=quick_replies,
-        )
-        results["channels"]["whatsapp"] = wa_res
+        try:
+            wa_text, quick_replies = whatsapp_service.format_daily_status_whatsapp_message(status_data, user_name)
+            wa_res = whatsapp_service.send_whatsapp_message(
+                to_phone=user.whatsapp_phone_number,
+                message=wa_text,
+                quick_replies=quick_replies,
+            )
+            results["channels"]["whatsapp"] = wa_res
+        except Exception as wa_err:
+            logger.error(f"WhatsApp dispatch error: {wa_err}")
+            results["channels"]["whatsapp"] = {"status": "error", "error": str(wa_err)}
     else:
         results["channels"]["whatsapp"] = {"status": "skipped", "reason": "Channel disabled or phone not linked"}
 
-    # 2. Telegram Delivery
-    if should_send_to_channel(user, "telegram") and user.telegram_chat_id:
+    # 2. Telegram Delivery (fallback to env TELEGRAM_CHAT_ID if user.telegram_chat_id is missing)
+    tg_chat_id = user.telegram_chat_id or os.getenv("TELEGRAM_CHAT_ID")
+    if should_send_to_channel(user, "telegram") and tg_chat_id:
         tg_text = reminder_service.format_daily_status_telegram_message(status_data, user_name)
         actionable_bills = (
             status_data["bills"].get("overdue_bills", []) +
             status_data["bills"].get("due_today_bills", [])
         )
         tg_markup = reminder_service.build_bills_inline_keyboard(actionable_bills)
-        
-        # Dispatch via direct telegram function
 
         tg_res = send_telegram_alert_direct(
-            chat_id=user.telegram_chat_id,
+            chat_id=tg_chat_id,
             text=tg_text,
             reply_markup=tg_markup,
         )

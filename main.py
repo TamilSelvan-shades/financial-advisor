@@ -293,19 +293,36 @@ def check_budget_threshold_alert(
 def scheduled_financial_health_check():
     import notification_dispatcher
     db = SessionLocal()
+    reports = []
     try:
         users = (
             db.query(models.User)
             .filter(models.User.is_active == True)
             .all()
         )
+        env_chat_id = os.getenv("TELEGRAM_CHAT_ID")
         for user in users:
+            # Auto-link fallback if user has no telegram_chat_id in DB
+            if not user.telegram_chat_id and env_chat_id:
+                user.telegram_chat_id = env_chat_id
+                try:
+                    db.commit()
+                except Exception:
+                    db.rollback()
+
             try:
-                notification_dispatcher.dispatch_daily_briefing(db, user)
+                res = notification_dispatcher.dispatch_daily_briefing(db, user)
+                reports.append({
+                    "user": user.email,
+                    "chat_id": user.telegram_chat_id,
+                    "channels": res.get("channels", {})
+                })
             except Exception as u_err:
                 print(f"Error generating daily briefing for tenant {user.id}: {u_err}")
+                reports.append({"user": user.email, "error": str(u_err)})
     finally:
         db.close()
+    return reports
 
 
 def async_process_telegram_message(user_text: str, tenant_id: str, chat_id: str):
@@ -3018,8 +3035,12 @@ def trigger_alert_now(
             detail="Unauthorized: valid X-API-Key or Bearer token required.",
         )
 
-    background_tasks.add_task(scheduled_financial_health_check)
-    return {"message": "Health check scheduled in background.", "status": "dispatched"}
+    report = scheduled_financial_health_check()
+    return {
+        "message": "Daily financial health check executed.",
+        "status": "dispatched",
+        "report": report
+    }
 
 # --- Secured Telegram Webhook ---
 
