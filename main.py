@@ -2973,6 +2973,11 @@ def chat_with_agent(req: schemas.ChatRequest, db: Session = Depends(get_db), cur
     except Exception as e:
         return {"reply": f"AI Error: {str(e)}"}
 
+@app.get("/ping", tags=["System"])
+def ping():
+    """Lightweight keep-alive heartbeat endpoint for uptime monitors without DB overhead."""
+    return {"status": "alive"}
+
 @app.get("/healthz", tags=["System"])
 def healthz(db: Session = Depends(get_db)):
     try:
