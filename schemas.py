@@ -42,6 +42,15 @@ class ExpenseCreate(BaseModel):
     remarks: Optional[str] = None
 
 
+class ExpenseUpdate(BaseModel):
+    date: Optional[str] = None
+    description: Optional[str] = None
+    amount: Optional[float] = None
+    category: Optional[str] = None
+    account: Optional[str] = None
+    remarks: Optional[str] = None
+
+
 class BulkExpenseCreate(BaseModel):
     expenses: List[ExpenseCreate]
     replace_all: Optional[bool] = False
@@ -53,6 +62,15 @@ class IncomeCreate(BaseModel):
     category: str
     amount: float
     account: Optional[str] = "ICICI Savings Account"
+    description: Optional[str] = None
+    remarks: Optional[str] = None
+
+
+class IncomeUpdate(BaseModel):
+    date: Optional[str] = None
+    category: Optional[str] = None
+    amount: Optional[float] = None
+    account: Optional[str] = None
     description: Optional[str] = None
     remarks: Optional[str] = None
 

@@ -1627,16 +1627,78 @@ def create_bulk_expenses(payload: schemas.BulkExpenseCreate, db: Session = Depen
 def create_single_expense(exp: schemas.ExpenseCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: models.User = Depends(dependencies.verify_active_subscription)):
     new_expense = models.Expense(**exp.model_dump(), tenant_id=current_user.id)
     db.add(new_expense)
-
     db.commit()
-
-    db.commit()
+    db.refresh(new_expense)
 
     warning = check_budget_threshold_alert(db, exp.category, current_user.id)
     if warning and current_user.telegram_chat_id:
         background_tasks.add_task(send_telegram_alert, warning, current_user.telegram_chat_id)
 
-    return {"message": "Expense created successfully."}
+    return {
+        "message": "Expense created successfully.",
+        "expense": {
+            "id": new_expense.id,
+            "date": new_expense.date,
+            "amount": new_expense.amount,
+            "category": new_expense.category,
+            "account": new_expense.account,
+            "description": new_expense.description,
+            "remarks": new_expense.remarks
+        }
+    }
+
+@app.put("/api/v1/expenses/{expense_id}", tags=["Expenses"])
+def update_expense(
+    expense_id: int, 
+    payload: schemas.ExpenseUpdate, 
+    background_tasks: BackgroundTasks, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(dependencies.verify_active_subscription)
+):
+    exp = db.query(models.Expense).filter(
+        models.Expense.id == expense_id, 
+        models.Expense.tenant_id == current_user.id
+    ).first()
+    if not exp:
+        raise HTTPException(status_code=404, detail="Expense not found.")
+
+    if payload.date is not None:
+        exp.date = payload.date
+    if payload.description is not None:
+        exp.description = payload.description
+    if payload.amount is not None:
+        if payload.amount <= 0:
+            raise HTTPException(status_code=400, detail="Amount must be greater than zero.")
+        exp.amount = float(payload.amount)
+    if payload.category is not None:
+        exp.category = payload.category
+    if payload.account is not None:
+        exp.account = payload.account
+    if payload.remarks is not None:
+        exp.remarks = payload.remarks
+
+    db.commit()
+    db.refresh(exp)
+
+    # Re-check budget threshold alert if category or amount updated
+    if payload.category or payload.amount:
+        cat_to_check = payload.category or exp.category
+        warning = check_budget_threshold_alert(db, cat_to_check, current_user.id)
+        if warning and current_user.telegram_chat_id:
+            background_tasks.add_task(send_telegram_alert, warning, current_user.telegram_chat_id)
+
+    return {
+        "message": "Expense updated successfully.",
+        "expense": {
+            "id": exp.id,
+            "date": exp.date,
+            "description": exp.description,
+            "amount": exp.amount,
+            "category": exp.category,
+            "account": exp.account,
+            "remarks": exp.remarks,
+        }
+    }
 
 @app.post("/api/v1/incomes/bulk", tags=["Income"])
 def create_bulk_incomes(payload: schemas.BulkIncomeCreate, db: Session = Depends(get_db), current_user: models.User = Depends(dependencies.verify_active_subscription)):
@@ -1652,7 +1714,64 @@ def create_single_income(inc: schemas.IncomeCreate, db: Session = Depends(get_db
     new_income = models.Income(**inc.model_dump(), tenant_id=current_user.id)
     db.add(new_income)
     db.commit()
-    return {"message": "Income recorded successfully."}
+    db.refresh(new_income)
+    return {
+        "message": "Income recorded successfully.",
+        "income": {
+            "id": new_income.id,
+            "date": new_income.date,
+            "amount": new_income.amount,
+            "category": new_income.category,
+            "account": new_income.account,
+            "description": new_income.description,
+            "remarks": new_income.remarks
+        }
+    }
+
+@app.put("/api/v1/incomes/{income_id}", tags=["Income"])
+def update_income(
+    income_id: int, 
+    payload: schemas.IncomeUpdate, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(dependencies.verify_active_subscription)
+):
+    inc = db.query(models.Income).filter(
+        models.Income.id == income_id, 
+        models.Income.tenant_id == current_user.id
+    ).first()
+    if not inc:
+        raise HTTPException(status_code=404, detail="Income not found.")
+
+    if payload.date is not None:
+        inc.date = payload.date
+    if payload.description is not None:
+        inc.description = payload.description
+    if payload.amount is not None:
+        if payload.amount <= 0:
+            raise HTTPException(status_code=400, detail="Amount must be greater than zero.")
+        inc.amount = float(payload.amount)
+    if payload.category is not None:
+        inc.category = payload.category
+    if payload.account is not None:
+        inc.account = payload.account
+    if payload.remarks is not None:
+        inc.remarks = payload.remarks
+
+    db.commit()
+    db.refresh(inc)
+
+    return {
+        "message": "Income updated successfully.",
+        "income": {
+            "id": inc.id,
+            "date": inc.date,
+            "description": inc.description,
+            "amount": inc.amount,
+            "category": inc.category,
+            "account": inc.account,
+            "remarks": inc.remarks,
+        }
+    }
 
 # --- Universal Statement Ingestion (Multi-Bank & Encrypted PDF) ---
 

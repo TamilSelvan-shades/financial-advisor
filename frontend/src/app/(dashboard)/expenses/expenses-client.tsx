@@ -55,6 +55,7 @@ import {
 import { useCurrency } from "@/context/currency-context";
 import ReceiptScannerModal from "@/components/receipt-scanner-modal";
 import VoiceLedgerModal from "@/components/voice-ledger-modal";
+import EditTransactionModal, { EditableTransaction } from "@/components/edit-transaction-modal";
 
 type Expense = {
   id: number;
@@ -208,6 +209,9 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
   // Log Form Type
   const [logTxType, setLogTxType] = useState<"Expense" | "Income">("Expense");
   const [logCategoryInput, setLogCategoryInput] = useState("");
+
+  // Edit Transaction Modal State
+  const [editingTransaction, setEditingTransaction] = useState<EditableTransaction | null>(null);
 
   // Keep activeTab in sync with query parameter
   useEffect(() => {
@@ -1643,13 +1647,33 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
                               {row.description || "—"}
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <button
-                                onClick={() => handleDeleteTransaction(row.type, row.id)}
-                                title="Delete record"
-                                className="p-1 text-slate-400 hover:text-red-600 transition-colors"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() =>
+                                    setEditingTransaction({
+                                      id: row.id,
+                                      type: row.type,
+                                      date: row.date,
+                                      amount: Math.abs(row.amount),
+                                      category: row.category,
+                                      account: row.account,
+                                      description: row.description,
+                                      remarks: row.remarks,
+                                    })
+                                  }
+                                  title={`Edit ${row.type}`}
+                                  className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTransaction(row.type, row.id)}
+                                  title={`Delete ${row.type}`}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -2038,6 +2062,113 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
                   </form>
                 </CardContent>
               </Card>
+
+              {/* Recently Logged Transactions Feed */}
+              <Card className="rounded-3xl border-slate-200 shadow-sm overflow-hidden">
+                <CardHeader className="bg-slate-50/70 border-b border-slate-100 flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base font-bold flex items-center gap-2">
+                      <Clock size={16} className="text-indigo-600" />
+                      <span>Recently Logged Transactions</span>
+                    </CardTitle>
+                    <CardDescription>
+                      Review, edit, or adjust entries you have saved.
+                    </CardDescription>
+                  </div>
+                  <button
+                    onClick={() => switchTab("accounts")}
+                    className="text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:underline flex items-center gap-1"
+                  >
+                    <span>View full ledger</span>
+                    <ChevronRight size={13} />
+                  </button>
+                </CardHeader>
+                <CardContent className="p-0 overflow-x-auto">
+                  {unifiedLedger.length === 0 ? (
+                    <p className="py-8 text-center text-slate-400 text-xs">
+                      No transactions recorded yet. Use the form above to record your first entry.
+                    </p>
+                  ) : (
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-slate-50/60 text-slate-500 uppercase font-semibold border-b">
+                        <tr>
+                          <th className="px-4 py-2.5">Date</th>
+                          <th className="px-4 py-2.5">Flow</th>
+                          <th className="px-4 py-2.5">Account</th>
+                          <th className="px-4 py-2.5">Category</th>
+                          <th className="px-4 py-2.5 text-right">Amount</th>
+                          <th className="px-4 py-2.5">Description</th>
+                          <th className="px-4 py-2.5 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {unifiedLedger.slice(0, 8).map((row) => (
+                          <tr key={`recent-${row.type}-${row.id}`} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="px-4 py-2.5 whitespace-nowrap text-slate-600 font-medium">{row.date}</td>
+                            <td className="px-4 py-2.5">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  row.type === "Income"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : "bg-rose-100 text-rose-800"
+                                }`}
+                              >
+                                {row.type}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-slate-700 font-semibold whitespace-nowrap">
+                              {row.account}
+                            </td>
+                            <td className="px-4 py-2.5 text-slate-600 flex items-center gap-1.5">
+                              <CategoryIcon category={row.category} />
+                              <span>{row.category}</span>
+                            </td>
+                            <td
+                              className={`px-4 py-2.5 text-right font-bold whitespace-nowrap ${
+                                row.amount >= 0 ? "text-emerald-600" : "text-rose-600"
+                              }`}
+                            >
+                              {row.amount >= 0 ? `+${formatINR(row.amount)}` : formatINR(row.amount)}
+                            </td>
+                            <td className="px-4 py-2.5 text-slate-600 max-w-xs truncate" title={row.description}>
+                              {row.description || "—"}
+                            </td>
+                            <td className="px-4 py-2.5 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  onClick={() =>
+                                    setEditingTransaction({
+                                      id: row.id,
+                                      type: row.type,
+                                      date: row.date,
+                                      amount: Math.abs(row.amount),
+                                      category: row.category,
+                                      account: row.account,
+                                      description: row.description,
+                                      remarks: row.remarks,
+                                    })
+                                  }
+                                  title={`Edit ${row.type}`}
+                                  className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                >
+                                  <Edit2 size={13} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTransaction(row.type, row.id)}
+                                  title={`Delete ${row.type}`}
+                                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           )}
 
@@ -2308,6 +2439,16 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
         isOpen={isVoiceModalOpen}
         onClose={() => setIsVoiceModalOpen(false)}
         onSuccess={() => loadData()}
+      />
+      <EditTransactionModal
+        isOpen={editingTransaction !== null}
+        onClose={() => setEditingTransaction(null)}
+        transaction={editingTransaction}
+        accountNames={accountNames}
+        onSuccess={(msg) => {
+          showNotification(msg);
+          loadData();
+        }}
       />
     </div>
   );
