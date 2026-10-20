@@ -18,6 +18,7 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts";
+import { chartTooltipStyle } from "@/components/ui/chart-tooltip";
 import {
   Calendar,
   TrendingUp,
@@ -53,6 +54,8 @@ import {
   Edit2,
 } from "lucide-react";
 import { useCurrency } from "@/context/currency-context";
+import { useSoundFX } from "@/context/sound-context";
+import { useToast } from "@/context/toast-context";
 import ReceiptScannerModal from "@/components/receipt-scanner-modal";
 import VoiceLedgerModal from "@/components/voice-ledger-modal";
 import EditTransactionModal, { EditableTransaction } from "@/components/edit-transaction-modal";
@@ -99,16 +102,16 @@ type BalanceAdjustment = {
 };
 
 const CHART_COLORS = [
-  "#3b82f6",
-  "#10b981",
-  "#f59e0b",
-  "#ef4444",
-  "#8b5cf6",
-  "#06b6d4",
-  "#ec4899",
-  "#84cc16",
-  "#14b8a6",
-  "#6366f1",
+  "#0ea5e9", // Sky
+  "#10b981", // Emerald
+  "#6366f1", // Indigo
+  "#f59e0b", // Amber
+  "#ec4899", // Pink
+  "#8b5cf6", // Purple
+  "#14b8a6", // Teal
+  "#f97316", // Orange
+  "#06b6d4", // Cyan
+  "#84cc16", // Lime
 ];
 
 const MONTH_NAMES = [
@@ -154,6 +157,9 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialTab = searchParams.get("tab") || "monthly";
+
+  const { toast } = useToast();
+  const { playClick, playSuccess, playSettle } = useSoundFX();
 
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [expenses, setExpenses] = useState<Expense[]>(initialData?.expenses || []);
@@ -261,6 +267,12 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
 
   const showNotification = (message: string, type: "success" | "error" = "success") => {
     setFeedback({ type, message });
+    if (type === "success") {
+      playSuccess();
+      toast.success(message);
+    } else {
+      toast.error(message);
+    }
     setTimeout(() => {
       setFeedback(null);
     }, 4500);
@@ -726,6 +738,40 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
 
 
 
+      {/* In-Page Segmented Tab Navigation Bar */}
+      <div className="flex items-center gap-1.5 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/90 p-1.5 shadow-xs backdrop-blur-md no-scrollbar">
+        {[
+          { id: "monthly", label: "Monthly", icon: Calendar },
+          { id: "annual", label: "Annual Trends", icon: TrendingUp },
+          { id: "custom", label: "Custom Range", icon: Sliders },
+          { id: "accounts", label: "Accounts & Reserves", icon: Wallet },
+          { id: "budgets", label: "Category Budgets", icon: Tag },
+          { id: "log", label: "Log Entry", icon: PlusCircle },
+          { id: "import", label: "Statement Ingestion", icon: FileSpreadsheet },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                playClick();
+                setActiveTab(tab.id);
+                router.replace(`/expenses?tab=${tab.id}`, { scroll: false });
+              }}
+              className={`flex items-center gap-2 shrink-0 rounded-xl px-3.5 py-2 text-xs font-bold transition-all cursor-pointer ${
+                isActive
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
+              }`}
+            >
+              <Icon size={14} className={isActive ? "text-emerald-400" : "text-slate-400"} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {loading ? (
         <div className="p-16 text-center space-y-4 bg-white/80 backdrop-blur-sm rounded-3xl border border-slate-200 shadow-sm">
           <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-indigo-600 border-t-transparent" />
@@ -930,7 +976,7 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
                                         />
                                       ))}
                                     </Pie>
-                                    <Tooltip formatter={(value: any) => formatINR(Number(value))} />
+                                    <Tooltip formatter={(value: any) => [formatINR(Number(value)), "Amount"]} {...chartTooltipStyle} />
                                     <Legend wrapperStyle={{ fontSize: "11px" }} />
                                   </PieChart>
                                 </ResponsiveContainer>
@@ -956,7 +1002,7 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                     <XAxis type="number" tickFormatter={(val) => `₹${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`} tick={{ fill: "#64748b", fontSize: 11 }} />
                                     <YAxis dataKey="name" type="category" width={110} tick={{ fill: "#64748b", fontSize: 11 }} />
-                                    <Tooltip formatter={(value: any) => formatINR(Number(value))} />
+                                    <Tooltip formatter={(value: any) => [formatINR(Number(value)), "Amount"]} {...chartTooltipStyle} />
                                     <Bar dataKey="value" name="Amount" fill="#3b82f6" radius={[0, 6, 6, 0]} />
                                   </BarChart>
                                 </ResponsiveContainer>
@@ -1135,7 +1181,7 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                               <XAxis dataKey="month" tick={{ fill: "#64748b", fontSize: 12 }} />
                               <YAxis tickFormatter={(val) => `₹${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`} tick={{ fill: "#64748b", fontSize: 11 }} />
-                              <Tooltip formatter={(value: any) => formatINR(Number(value))} />
+                              <Tooltip formatter={(value: any, name: any) => [formatINR(Number(value)), name]} {...chartTooltipStyle} />
                               <Legend wrapperStyle={{ fontSize: "12px" }} />
                               <Bar dataKey="Income" name="Income" fill="#10b981" radius={[6, 6, 0, 0]} />
                               <Bar dataKey="Expense" name="Expense" fill="#ef4444" radius={[6, 6, 0, 0]} />
@@ -1343,7 +1389,7 @@ function ExpensesContent({ initialData }: { initialData?: any }) {
                                     />
                                   ))}
                                 </Pie>
-                                <Tooltip formatter={(value: any) => formatINR(Number(value))} />
+                                <Tooltip formatter={(value: any) => [formatINR(Number(value)), "Amount"]} {...chartTooltipStyle} />
                                 <Legend wrapperStyle={{ fontSize: "11px" }} />
                               </PieChart>
                             </ResponsiveContainer>

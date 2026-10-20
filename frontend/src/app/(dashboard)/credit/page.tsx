@@ -5,6 +5,7 @@ import { fetchWithAuthClient } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, Star, Trash2, ShieldCheck } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { chartTooltipStyle } from "@/components/ui/chart-tooltip";
 
 type CreditScore = {
   id: number;
@@ -249,7 +250,7 @@ export default function CreditPage() {
                     <YAxis domain={[300, 900]} tickLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
                     <Tooltip 
                       formatter={(value: any) => [`${value} pts`, "Credit Score"]}
-                      contentStyle={{ backgroundColor: "#1e293b", borderColor: "#334155", borderRadius: "8px", color: "#fff", fontSize: "12px" }}
+                      {...chartTooltipStyle}
                     />
                     <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={3} dot={{ r: 5, fill: "#3b82f6" }} activeDot={{ r: 8 }} />
                   </LineChart>

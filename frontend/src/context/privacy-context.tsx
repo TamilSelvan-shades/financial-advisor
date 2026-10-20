@@ -89,8 +89,8 @@ export function PrivacyValue({
   if (isPrivate) {
     return (
       <span
-        className={`inline-block filter blur-[6px] select-none transition-all duration-300 opacity-60 hover:opacity-100 ${className}`}
-        title="Privacy Mode Active (Alt+P to reveal)"
+        className={`inline-block filter blur-[7px] select-none transition-all duration-300 opacity-50 hover:blur-[0px] hover:opacity-100 cursor-pointer ${className}`}
+        title="Privacy Mask Active — hover to peek or press P to toggle"
       >
         {value}
       </span>

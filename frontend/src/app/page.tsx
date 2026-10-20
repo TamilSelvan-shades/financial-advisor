@@ -1,72 +1,192 @@
+import {
+  ArrowRight,
+  Landmark,
+  LockKeyhole,
+  ReceiptText,
+  ScanLine,
+  TrendingUp,
+} from "lucide-react";
 import Link from "next/link";
-import { ArrowRight, Activity, Shield, Sparkles } from "lucide-react";
+
+const cashFlowBars = [44, 62, 51, 74, 67, 88, 79, 96, 84, 108, 102, 124];
 
 export default function Home() {
   return (
-    <div className="flex flex-col min-h-screen">
-      <header className="px-6 py-4 flex items-center justify-between border-b bg-white">
-        <div className="font-bold text-xl tracking-tighter">AI Advisor</div>
-        <nav className="flex items-center gap-4">
-          <Link href="/login" className="text-sm font-medium hover:underline underline-offset-4">Log in</Link>
-          <Link href="/register" className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-slate-50 transition-colors hover:bg-slate-900/90">
-            Sign up
+    <div className="min-h-screen bg-[#f7f7f2] text-[#15332f]">
+      <header className="absolute inset-x-0 top-0 z-20 border-b border-white/10">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
+          <Link
+            href="/"
+            className="flex items-center gap-2.5"
+            aria-label="Ledgerly home"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-300 text-[#15332f]">
+              <Landmark size={16} />
+            </span>
+            <span className="text-base font-extrabold tracking-tight text-white">
+              Ledgerly
+            </span>
           </Link>
-        </nav>
+          <nav
+            className="flex items-center gap-2"
+            aria-label="Account navigation"
+          >
+            <Link
+              href="/login"
+              className="rounded-md px-3 py-2 text-sm font-semibold text-emerald-50/75 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/register"
+              className="rounded-md bg-emerald-300 px-4 py-2 text-sm font-bold text-[#15332f] transition-colors hover:bg-emerald-200"
+            >
+              Create account
+            </Link>
+          </nav>
+        </div>
       </header>
 
-      <main className="flex-1">
-        <section className="w-full py-24 md:py-32 lg:py-48 flex flex-col items-center justify-center text-center px-4">
-          <div className="space-y-4 max-w-[800px]">
-            <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
-              Take Control of Your <span className="text-blue-600">Financial Future</span>
-            </h1>
-            <p className="mx-auto max-w-[600px] text-slate-500 md:text-xl leading-relaxed">
-              Meet your personal AI financial advisor. Track expenses, monitor loans, manage investments, and get intelligent insights automatically.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-              <Link href="/register" className="inline-flex h-12 items-center justify-center rounded-md bg-blue-600 px-8 text-sm font-medium text-white transition-colors hover:bg-blue-700 w-full sm:w-auto">
-                Get Started for Free <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-              <Link href="/login" className="inline-flex h-12 items-center justify-center rounded-md border border-slate-200 bg-white px-8 text-sm font-medium text-slate-900 transition-colors hover:bg-slate-100 hover:text-slate-900 w-full sm:w-auto">
-                Log In
-              </Link>
+      <main>
+        <section className="relative flex min-h-[88vh] items-center overflow-hidden bg-[#15332f] px-5 pb-24 pt-28 text-white sm:px-8">
+          <div
+            className="absolute inset-x-0 bottom-0 flex h-[46%] items-end gap-2 px-3 opacity-20 sm:gap-4 sm:px-8"
+            aria-hidden="true"
+          >
+            {cashFlowBars.map((height, index) => (
+              <div
+                key={index}
+                className="flex-1 border-t border-emerald-200/70 bg-emerald-200/20"
+                style={{ height: `${height}px` }}
+              />
+            ))}
+          </div>
+          <div
+            className="absolute inset-x-0 bottom-[46%] border-t border-dashed border-emerald-100/15"
+            aria-hidden="true"
+          />
+
+          <div className="relative z-10 mx-auto w-full max-w-7xl">
+            <div className="max-w-3xl page-reveal">
+              <div className="mb-6 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-200/75">
+                <span className="h-px w-8 bg-emerald-300/70" />
+                Personal financial intelligence
+              </div>
+              <h1 className="max-w-2xl text-5xl font-extrabold leading-[1.02] tracking-tight sm:text-6xl lg:text-7xl">
+                Ledgerly
+              </h1>
+              <p className="mt-5 max-w-2xl text-lg leading-8 text-emerald-50/70 sm:text-xl">
+                A private command center that turns accounts, spending, debt,
+                investments, and tax planning into decisions you can act on.
+              </p>
+              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href="/register"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-emerald-300 px-6 text-sm font-bold text-[#15332f] transition-colors hover:bg-emerald-200"
+                >
+                  Open your workspace <ArrowRight size={16} />
+                </Link>
+                <Link
+                  href="/login"
+                  className="inline-flex h-12 items-center justify-center rounded-md border border-white/15 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                >
+                  Return to dashboard
+                </Link>
+              </div>
+            </div>
+
+            <div className="mt-16 grid max-w-3xl grid-cols-2 gap-x-8 gap-y-5 border-t border-white/10 pt-6 sm:grid-cols-4">
+              <div>
+                <div className="font-mono text-lg font-semibold text-emerald-200">
+                  24/7
+                </div>
+                <div className="mt-1 text-xs text-emerald-50/45">
+                  Ledger monitoring
+                </div>
+              </div>
+              <div>
+                <div className="font-mono text-lg font-semibold text-emerald-200">
+                  6
+                </div>
+                <div className="mt-1 text-xs text-emerald-50/45">
+                  Display currencies
+                </div>
+              </div>
+              <div>
+                <div className="font-mono text-lg font-semibold text-emerald-200">
+                  3
+                </div>
+                <div className="mt-1 text-xs text-emerald-50/45">
+                  Input channels
+                </div>
+              </div>
+              <div>
+                <div className="font-mono text-lg font-semibold text-emerald-200">
+                  1
+                </div>
+                <div className="mt-1 text-xs text-emerald-50/45">
+                  Private workspace
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="w-full py-16 bg-slate-50">
-          <div className="container mx-auto px-4 md:px-6">
-            <div className="grid gap-8 md:grid-cols-3">
-              <div className="flex flex-col items-center text-center space-y-2 p-6 bg-white rounded-xl shadow-sm border border-slate-100">
-                <div className="p-3 rounded-full bg-blue-100 text-blue-600 mb-2">
-                  <Activity className="h-6 w-6" />
+        <section className="border-b border-[#15332f]/10 bg-[#f7f7f2] py-16 sm:py-20">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8">
+            <div className="grid gap-10 lg:grid-cols-[0.8fr_2fr]">
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#167d6b]">
+                  One financial record
                 </div>
-                <h3 className="text-xl font-bold">Real-time Tracking</h3>
-                <p className="text-slate-500">Monitor your cash flow, budgets, and net worth all in one intuitive dashboard.</p>
+                <h2 className="mt-3 text-3xl font-extrabold leading-tight tracking-tight">
+                  Less admin. Better decisions.
+                </h2>
               </div>
-              <div className="flex flex-col items-center text-center space-y-2 p-6 bg-white rounded-xl shadow-sm border border-slate-100">
-                <div className="p-3 rounded-full bg-purple-100 text-purple-600 mb-2">
-                  <Sparkles className="h-6 w-6" />
+              <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="border-l border-[#15332f]/15 pl-5">
+                  <ReceiptText size={20} className="text-[#df6c4f]" />
+                  <h3 className="mt-4 font-bold">Cash flow</h3>
+                  <p className="mt-2 text-sm leading-6 text-[#48615d]">
+                    Transactions, budgets, bills, and safe-to-spend guidance in
+                    one view.
+                  </p>
                 </div>
-                <h3 className="text-xl font-bold">AI Insights</h3>
-                <p className="text-slate-500">Chat with your AI advisor to get tailored advice, parse receipts, and log expenses via Telegram.</p>
-              </div>
-              <div className="flex flex-col items-center text-center space-y-2 p-6 bg-white rounded-xl shadow-sm border border-slate-100">
-                <div className="p-3 rounded-full bg-green-100 text-green-600 mb-2">
-                  <Shield className="h-6 w-6" />
+                <div className="border-l border-[#15332f]/15 pl-5">
+                  <TrendingUp size={20} className="text-[#3f72af]" />
+                  <h3 className="mt-4 font-bold">Wealth</h3>
+                  <p className="mt-2 text-sm leading-6 text-[#48615d]">
+                    Track investments, goals, credit health, and net worth over
+                    time.
+                  </p>
                 </div>
-                <h3 className="text-xl font-bold">Bank-Grade Security</h3>
-                <p className="text-slate-500">Your data is encrypted and secure. We use enterprise-grade architecture to keep your finances private.</p>
+                <div className="border-l border-[#15332f]/15 pl-5">
+                  <ScanLine size={20} className="text-[#d4a02e]" />
+                  <h3 className="mt-4 font-bold">Fast capture</h3>
+                  <p className="mt-2 text-sm leading-6 text-[#48615d]">
+                    Log by voice, scan receipts, or ingest statements without
+                    manual cleanup.
+                  </p>
+                </div>
+                <div className="border-l border-[#15332f]/15 pl-5">
+                  <LockKeyhole size={20} className="text-[#167d6b]" />
+                  <h3 className="mt-4 font-bold">Private by design</h3>
+                  <p className="mt-2 text-sm leading-6 text-[#48615d]">
+                    Tenant-isolated records with an instant privacy mask for
+                    sensitive values.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
         </section>
       </main>
 
-      <footer className="w-full border-t py-6 flex items-center justify-center bg-white">
-        <p className="text-sm text-slate-500 text-center">
-          © {new Date().getFullYear()} AI Advisor. All rights reserved.
-        </p>
+      <footer className="bg-[#f7f7f2] py-6">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 text-xs text-[#48615d] sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <span>© {new Date().getFullYear()} Ledgerly</span>
+          <span>Your financial record, made useful.</span>
+        </div>
       </footer>
     </div>
   );

@@ -1,40 +1,39 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { logout } from "@/app/actions/auth";
+import { useCurrency } from "@/context/currency-context";
+import { usePrivacy } from "@/context/privacy-context";
+import { fetchWithAuthClient } from "@/lib/api-client";
 import {
-  LayoutDashboard,
-  Landmark,
-  WalletCards,
-  MessageSquare,
-  TrendingUp,
-  Target,
-  Receipt,
-  ShieldCheck,
+  BarChart3,
+  Calculator,
+  Calendar,
   ChevronDown,
   ChevronRight,
-  LogOut,
-  Sparkles,
-  Calendar,
-  BarChart3,
   Clock,
   CreditCard,
-  Sliders,
-  PlusCircle,
-  FileSpreadsheet,
-  Search,
   Eye,
   EyeOff,
-  Calculator,
+  FileSpreadsheet,
   FileText,
-  X,
+  Landmark,
+  LayoutDashboard,
+  LogOut,
+  MessageSquare,
+  PlusCircle,
+  Receipt,
+  Search,
+  ShieldCheck,
+  Sliders,
+  Target,
+  TrendingUp,
   User,
+  WalletCards,
+  X,
 } from "lucide-react";
-import { logout } from "@/app/actions/auth";
-import { usePrivacy } from "@/context/privacy-context";
-import { useCurrency } from "@/context/currency-context";
-import { fetchWithAuthClient } from "@/lib/api-client";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
@@ -46,14 +45,9 @@ export default function DashboardSidebar() {
 
   // Auto-expand Expenses sub-menu if currently on /expenses
   const isExpensesRoute = pathname === "/expenses";
-  const [expensesExpanded, setExpensesExpanded] = useState(isExpensesRoute);
+  const [expensesExpanded, setExpensesExpanded] = useState(false);
+  const showExpensesMenu = expensesExpanded || isExpensesRoute;
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-
-  useEffect(() => {
-    if (isExpensesRoute) {
-      setExpensesExpanded(true);
-    }
-  }, [isExpensesRoute]);
 
   useEffect(() => {
     const handleToggle = () => setIsMobileOpen((prev) => !prev);
@@ -102,13 +96,48 @@ export default function DashboardSidebar() {
       icon: WalletCards,
       isExpandable: true,
       subItems: [
-        { href: "/expenses?tab=monthly", tabId: "monthly", label: "Monthly Overview", icon: Calendar },
-        { href: "/expenses?tab=annual", tabId: "annual", label: "Annual Trends", icon: BarChart3 },
-        { href: "/expenses?tab=custom", tabId: "custom", label: "Custom Range", icon: Clock },
-        { href: "/expenses?tab=accounts", tabId: "accounts", label: "Accounts & Balances", icon: CreditCard },
-        { href: "/expenses?tab=budgets", tabId: "budgets", label: "Category Budgets", icon: Sliders },
-        { href: "/expenses?tab=log", tabId: "log", label: "Log Transaction", icon: PlusCircle },
-        { href: "/expenses?tab=import", tabId: "import", label: "Statement Ingestion", icon: FileSpreadsheet },
+        {
+          href: "/expenses?tab=monthly",
+          tabId: "monthly",
+          label: "Monthly Overview",
+          icon: Calendar,
+        },
+        {
+          href: "/expenses?tab=annual",
+          tabId: "annual",
+          label: "Annual Trends",
+          icon: BarChart3,
+        },
+        {
+          href: "/expenses?tab=custom",
+          tabId: "custom",
+          label: "Custom Range",
+          icon: Clock,
+        },
+        {
+          href: "/expenses?tab=accounts",
+          tabId: "accounts",
+          label: "Accounts & Balances",
+          icon: CreditCard,
+        },
+        {
+          href: "/expenses?tab=budgets",
+          tabId: "budgets",
+          label: "Category Budgets",
+          icon: Sliders,
+        },
+        {
+          href: "/expenses?tab=log",
+          tabId: "log",
+          label: "Log Transaction",
+          icon: PlusCircle,
+        },
+        {
+          href: "/expenses?tab=import",
+          tabId: "import",
+          label: "Statement Ingestion",
+          icon: FileSpreadsheet,
+        },
       ],
     },
     { href: "/chat", label: "AI Advisor Chat", icon: MessageSquare },
@@ -122,209 +151,251 @@ export default function DashboardSidebar() {
     <>
       {/* Mobile Overlay */}
       {isMobileOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 md:hidden animate-in fade-in duration-200"
           onClick={() => setIsMobileOpen(false)}
         />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 w-[280px] bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white p-5 flex flex-col border-r border-slate-800/80 shrink-0 transform transition-transform duration-300 md:relative md:w-68 md:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-70 shrink-0 transform flex-col border-r border-white/8 bg-gradient-to-b from-[#15332f] via-[#143330] to-[#112a27] p-4 text-white shadow-2xl shadow-black/20 transition-transform duration-300 md:relative md:w-68 md:translate-x-0 md:shadow-none ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}`}
+      >
         {/* Brand Header */}
-        <div className="mb-4 flex items-center justify-between px-2">
+        <div className="mb-5 flex items-center justify-between px-1 pt-1">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-              <Sparkles className="text-white h-5 w-5" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200/20 bg-emerald-300 text-[#15332f] shadow-sm">
+              <Landmark className="h-4.5 w-4.5" />
             </div>
             <div>
-              <div className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
-                AI Advisor
+              <div className="text-[17px] font-extrabold tracking-tight text-white">
+                Ledgerly
               </div>
-              <div className="text-[10px] uppercase font-semibold tracking-wider text-indigo-400">
-                Enterprise Financials
+              <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-200/70">
+                Private finance desk
               </div>
             </div>
           </div>
           {/* Mobile Close Button */}
-          <button 
-            className="md:hidden p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800/50"
+          <button
+            className="rounded-lg p-1.5 text-emerald-100/60 transition-colors hover:bg-white/10 hover:text-white md:hidden"
             onClick={() => setIsMobileOpen(false)}
+            aria-label="Close navigation"
           >
             <X size={18} />
           </button>
         </div>
 
-      {/* Quick Search & Command Palette Pill */}
-      <button
-        onClick={() => {
-          window.dispatchEvent(
-            new KeyboardEvent("keydown", { key: "k", ctrlKey: true, metaKey: true })
-          );
-        }}
-        className="mb-4 flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-800/90 text-slate-400 hover:text-white hover:border-slate-700 transition-all text-xs group"
-        title="Open Command Palette (Ctrl+K / Cmd+K)"
-      >
-        <span className="flex items-center gap-2">
-          <Search size={14} className="text-slate-500 group-hover:text-indigo-400 transition-colors" />
-          <span>Quick Actions...</span>
-        </span>
-        <kbd className="text-[10px] font-semibold bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 text-slate-400">
-          ⌘K
-        </kbd>
-      </button>
-
-      {/* Navigation Links */}
-      <nav className="flex-1 space-y-1 overflow-y-auto pr-1 text-sm font-medium">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isMainActive = pathname === item.href;
-
-          if (item.isExpandable) {
-            return (
-              <div key={item.href} className="space-y-1">
-                <div
-                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer select-none ${
-                    isMainActive
-                      ? "bg-indigo-600/20 text-white font-semibold border border-indigo-500/30"
-                      : "text-slate-400 hover:text-white hover:bg-slate-800/60"
-                  }`}
-                  onClick={() => setExpensesExpanded((prev) => !prev)}
-                >
-                  <Link
-                    href={item.href}
-                    className="flex items-center gap-3 flex-1"
-                    onClick={(e) => {
-                      if (!isExpensesRoute) {
-                        setExpensesExpanded(true);
-                      }
-                      if (window.innerWidth < 768) {
-                        setIsMobileOpen(false);
-                      }
-                    }}
-                  >
-                    <Icon size={18} className={isMainActive ? "text-indigo-400" : "text-slate-400"} />
-                    <span>{item.label}</span>
-                  </Link>
-
-                  {expensesExpanded ? (
-                    <ChevronDown size={15} className="text-slate-400 shrink-0" />
-                  ) : (
-                    <ChevronRight size={15} className="text-slate-400 shrink-0" />
-                  )}
-                </div>
-
-                {/* Sub-menu items for Expenses */}
-                {expensesExpanded && (
-                  <div className="pl-6 pr-1 py-1 space-y-1 border-l-2 border-slate-800 ml-5">
-                    {item.subItems?.map((sub) => {
-                      const SubIcon = sub.icon;
-                      const isSubActive = pathname === "/expenses" && activeTabParam === sub.tabId;
-
-                      return (
-                        <Link
-                          key={sub.href}
-                          href={sub.href}
-                          onClick={() => {
-                            if (window.innerWidth < 768) {
-                              setIsMobileOpen(false);
-                            }
-                          }}
-                          className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-all ${
-                            isSubActive
-                              ? "bg-indigo-600 text-white font-semibold shadow-sm shadow-indigo-600/30"
-                              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
-                          }`}
-                        >
-                          <SubIcon size={13} className={isSubActive ? "text-white" : "text-slate-400"} />
-                          <span>{sub.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          }
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => {
-                if (window.innerWidth < 768) {
-                  setIsMobileOpen(false);
-                }
-              }}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
-                isMainActive
-                  ? "bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-semibold shadow-md shadow-indigo-600/25"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800/60"
-              }`}
-            >
-              <Icon size={18} className={isMainActive ? "text-white" : "text-slate-400"} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Footer User, Privacy Mode & Logout */}
-      <div className="mt-auto pt-3 border-t border-slate-800/80 space-y-1.5">
-        {/* Active Currency Display */}
-        <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400">
-          <span className="flex items-center gap-1.5">
-            <span>{currencyMeta.flag}</span>
-            <span>Ledger Display:</span>
-          </span>
-          <span className="font-bold text-indigo-300 font-mono">{currency} ({currencyMeta.symbol})</span>
-        </div>
-
-        {/* Privacy Mode Toggle */}
+        {/* Quick Search & Command Palette Pill */}
         <button
-          onClick={togglePrivacy}
-          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
-            isPrivate
-              ? "bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow-sm shadow-amber-500/10"
-              : "text-slate-400 hover:text-white hover:bg-slate-800/60 border border-transparent"
-          }`}
-          title="Toggle Privacy Mode (Alt+P to blur/reveal balances)"
+          onClick={() => {
+            window.dispatchEvent(
+              new KeyboardEvent("keydown", {
+                key: "k",
+                ctrlKey: true,
+                metaKey: true,
+              }),
+            );
+          }}
+          className="group mb-4 flex items-center justify-between rounded-lg border border-white/10 bg-white/6 px-3 py-2.5 text-xs text-emerald-50/60 transition-colors hover:border-emerald-200/30 hover:bg-white/10 hover:text-white"
+          title="Open Command Palette (Ctrl+K / Cmd+K)"
         >
-          <div className="flex items-center gap-2.5">
-            {isPrivate ? <EyeOff size={15} className="text-amber-400" /> : <Eye size={15} />}
-            <span>Privacy Mode</span>
-          </div>
-          <span className="text-[10px] uppercase tracking-wider font-mono opacity-80 bg-slate-900 px-1.5 py-0.5 rounded">
-            {isPrivate ? "Active" : "Off"}
+          <span className="flex items-center gap-2">
+            <Search
+              size={14}
+              className="text-emerald-200/55 transition-colors group-hover:text-emerald-200"
+            />
+            <span>Search or take action</span>
+          </span>
+          <span className="text-[10px] font-semibold text-emerald-100/35">
+            ⌘ K
           </span>
         </button>
 
-        {/* User Profile Info */}
-        {userEmail && (
-          <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-slate-800/40 border border-slate-800/80">
-            <div className="h-7 w-7 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
-              <User size={14} />
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Logged in as</span>
-              <span className="text-xs font-medium text-slate-200 truncate">{userEmail}</span>
-            </div>
-          </div>
-        )}
+        {/* Navigation Links */}
+        <nav className="flex-1 space-y-0.5 overflow-y-auto pr-1 text-[13px] font-semibold custom-scrollbar">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isMainActive = pathname === item.href;
 
-        {/* Sign Out */}
-        <form
-          action={async () => {
-            await logout();
-          }}
-        >
+            if (item.isExpandable) {
+              return (
+                <div key={item.href} className="space-y-1">
+                  <div
+                    className={`flex cursor-pointer select-none items-center justify-between rounded-lg px-3 py-2.5 transition-colors ${
+                      isMainActive
+                        ? "bg-emerald-200 text-[#15332f] shadow-sm"
+                        : "text-emerald-50/65 hover:bg-white/[0.07] hover:text-white"
+                    }`}
+                    onClick={() => setExpensesExpanded((prev) => !prev)}
+                  >
+                    <Link
+                      href={item.href}
+                      className="flex items-center gap-3 flex-1"
+                      onClick={() => {
+                        if (!isExpensesRoute) {
+                          setExpensesExpanded(true);
+                        }
+                        if (window.innerWidth < 768) {
+                          setIsMobileOpen(false);
+                        }
+                      }}
+                    >
+                      <Icon
+                        size={17}
+                        className={
+                          isMainActive
+                            ? "text-[#19685a]"
+                            : "text-emerald-200/55"
+                        }
+                      />
+                      <span>{item.label}</span>
+                    </Link>
+
+                    {showExpensesMenu ? (
+                      <ChevronDown size={15} className="shrink-0 opacity-60" />
+                    ) : (
+                      <ChevronRight size={15} className="shrink-0 opacity-60" />
+                    )}
+                  </div>
+
+                  {/* Sub-menu items for Expenses */}
+                  {showExpensesMenu && (
+                    <div className="ml-5 space-y-1 border-l border-emerald-200/15 py-1 pl-4 pr-1">
+                      {item.subItems?.map((sub) => {
+                        const SubIcon = sub.icon;
+                        const isSubActive =
+                          pathname === "/expenses" &&
+                          activeTabParam === sub.tabId;
+
+                        return (
+                          <Link
+                            key={sub.href}
+                            href={sub.href}
+                            onClick={() => {
+                              if (window.innerWidth < 768) {
+                                setIsMobileOpen(false);
+                              }
+                            }}
+                            className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[11px] transition-colors ${
+                              isSubActive
+                                ? "bg-white/12 font-semibold text-emerald-100"
+                                : "text-emerald-50/50 hover:bg-white/6 hover:text-white"
+                            }`}
+                          >
+                            <SubIcon
+                              size={13}
+                              className={
+                                isSubActive
+                                  ? "text-emerald-200"
+                                  : "text-emerald-100/45"
+                              }
+                            />
+                            <span>{sub.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => {
+                  if (window.innerWidth < 768) {
+                    setIsMobileOpen(false);
+                  }
+                }}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-200 ${
+                  isMainActive
+                    ? "bg-emerald-200 font-bold text-[#15332f] shadow-sm shadow-emerald-300/20"
+                    : "text-emerald-50/65 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5"
+                }`}
+                aria-current={isMainActive ? "page" : undefined}
+              >
+                <Icon
+                  size={17}
+                  className={
+                    isMainActive ? "text-[#19685a]" : "text-emerald-200/55"
+                  }
+                />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Footer User, Privacy Mode & Logout */}
+        <div className="mt-auto space-y-1.5 border-t border-white/8 pt-3">
+          {/* Active Currency Display */}
+          <div className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-1.5 text-[10px] text-emerald-50/55">
+            <span className="flex items-center gap-1.5">
+              <span>{currencyMeta.flag}</span>
+              <span>Ledger Display:</span>
+            </span>
+            <span className="font-mono font-semibold text-emerald-200">
+              {currency} ({currencyMeta.symbol})
+            </span>
+          </div>
+
+          {/* Privacy Mode Toggle */}
           <button
-            type="submit"
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors"
+            onClick={togglePrivacy}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+              isPrivate
+                ? "border border-amber-300/30 bg-amber-300/10 text-amber-200"
+                : "border border-transparent text-emerald-50/60 hover:bg-white/[0.07] hover:text-white"
+            }`}
+            title="Toggle Privacy Mode (Alt+P to blur/reveal balances)"
           >
-            <LogOut size={15} />
-            <span>Sign Out</span>
+            <div className="flex items-center gap-2.5">
+              {isPrivate ? (
+                <EyeOff size={15} className="text-amber-400" />
+              ) : (
+                <Eye size={15} />
+              )}
+              <span>Privacy Mode</span>
+            </div>
+            <span className="rounded bg-black/15 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider opacity-80">
+              {isPrivate ? "Active" : "Off"}
+            </span>
           </button>
-        </form>
-      </div>
+
+          {/* User Profile Info */}
+          {userEmail && (
+            <div className="flex items-center gap-2.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-200/10 text-emerald-200">
+                <User size={14} />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[9px] font-semibold uppercase tracking-wider text-emerald-50/35">
+                  Signed in
+                </span>
+                <span className="truncate text-xs font-medium text-emerald-50/80">
+                  {userEmail}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Sign Out */}
+          <form
+            action={async () => {
+              await logout();
+            }}
+          >
+            <button
+              type="submit"
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-200/75 transition-colors hover:bg-rose-300/10 hover:text-rose-100"
+            >
+              <LogOut size={15} />
+              <span>Sign Out</span>
+            </button>
+          </form>
+        </div>
       </aside>
     </>
   );

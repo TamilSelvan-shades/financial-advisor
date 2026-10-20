@@ -5,6 +5,7 @@ import { fetchWithAuthClient } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, TrendingUp, TrendingDown, PlusCircle, Trash2, PieChart as PieIcon, Sparkles } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
+import { chartTooltipStyle } from "@/components/ui/chart-tooltip";
 
 type Investment = {
   id: number;
@@ -395,7 +396,13 @@ export default function InvestmentsPage() {
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: any) => `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`} />
+                    <Tooltip
+                      formatter={(value: any) => [
+                        `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`,
+                        "Holding Value",
+                      ]}
+                      {...chartTooltipStyle}
+                    />
                     <Legend wrapperStyle={{ fontSize: "11px" }} />
                   </PieChart>
                 </ResponsiveContainer>

@@ -1,14 +1,16 @@
-import Link from "next/link";
-import { logout } from "@/app/actions/auth";
-import { redirect } from "next/navigation";
 import { fetchWithAuth } from "@/lib/api-server";
+import { redirect } from "next/navigation";
 
-import DashboardSidebar from "@/components/dashboard-sidebar";
 import CommandPalette from "@/components/command-palette";
-import { PrivacyProvider } from "@/context/privacy-context";
-import { CurrencyProvider } from "@/context/currency-context";
+import DashboardSidebar from "@/components/dashboard-sidebar";
 import DashboardTopBar from "@/components/dashboard-topbar";
 import FloatingActionDock from "@/components/floating-action-dock";
+import { CurrencyProvider } from "@/context/currency-context";
+import { PrivacyProvider } from "@/context/privacy-context";
+import { SoundProvider } from "@/context/sound-context";
+import { ToastProvider } from "@/context/toast-context";
+import { Toaster } from "@/components/ui/toaster";
+import { KeyboardShortcutsModal } from "@/components/keyboard-shortcuts-modal";
 import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +24,9 @@ export default async function DashboardLayout({
   let shouldRedirectToLogin = false;
 
   try {
-    const res = await fetchWithAuth("/api/v1/auth/me", { next: { revalidate: 0 } });
+    const res = await fetchWithAuth("/api/v1/auth/me", {
+      next: { revalidate: 0 },
+    });
     if (res.ok) {
       const data = await res.json();
       const status = data.subscription_status;
@@ -44,23 +48,28 @@ export default async function DashboardLayout({
   return (
     <PrivacyProvider>
       <CurrencyProvider>
-        <CommandPalette />
-        <FloatingActionDock />
-        <div className="flex min-h-screen flex-col md:flex-row bg-slate-50/50">
-          {/* Interactive Fintech Sidebar */}
-          <Suspense fallback={<aside className="w-full md:w-68 bg-slate-950 p-5 shrink-0" />}>
-            <DashboardSidebar />
-          </Suspense>
+        <SoundProvider>
+          <ToastProvider>
+            <CommandPalette />
+            <FloatingActionDock />
+            <KeyboardShortcutsModal />
+            <Toaster />
+            <div className="flex min-h-screen flex-col md:flex-row">
+              <Suspense
+                fallback={
+                  <aside className="w-full shrink-0 bg-[#15332f] md:w-68" />
+                }
+              >
+                <DashboardSidebar />
+              </Suspense>
 
-          {/* Main Content */}
-          <main className="flex-1 p-4 md:p-8 pb-20 overflow-auto flex flex-col min-w-0">
-            {/* Elevated Top Bar with Live Sync, Command Palette, Privacy & Currency Selector */}
-            <DashboardTopBar />
-            <div className="flex-1">
-              {children}
+              <main className="flex min-w-0 flex-1 flex-col overflow-auto px-4 pb-24 pt-3 sm:px-5 md:px-8 md:pt-5 lg:px-10">
+                <DashboardTopBar />
+                <div className="page-reveal flex-1">{children}</div>
+              </main>
             </div>
-          </main>
-        </div>
+          </ToastProvider>
+        </SoundProvider>
       </CurrencyProvider>
     </PrivacyProvider>
   );

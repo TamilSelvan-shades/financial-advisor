@@ -20,9 +20,11 @@ import {
   Wallet,
   Receipt,
   RefreshCw,
+  Printer,
 } from "lucide-react";
 import { fetchWithAuthClient } from "@/lib/api-client";
 import { useCurrency } from "@/context/currency-context";
+import { useSoundFX } from "@/context/sound-context";
 import { PrivacyValue } from "@/context/privacy-context";
 
 interface LeakItem {
@@ -77,6 +79,7 @@ interface ExecutiveBriefingData {
 
 export default function ExecutiveReportsPage() {
   const { formatCurrency, currency } = useCurrency();
+  const { playClick } = useSoundFX();
   const [briefing, setBriefing] = useState<ExecutiveBriefingData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [downloading, setDownloading] = useState<boolean>(false);
@@ -160,9 +163,22 @@ export default function ExecutiveReportsPage() {
           </button>
 
           <button
+            onClick={() => {
+              playClick();
+              window.print();
+            }}
+            disabled={!briefing}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-all border border-slate-700 cursor-pointer disabled:opacity-50"
+            title="Print or Save PDF Statement"
+          >
+            <Printer size={14} />
+            <span className="hidden sm:inline">Print Statement</span>
+          </button>
+
+          <button
             onClick={handleDownloadReport}
             disabled={downloading || !briefing}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/30 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/30 disabled:opacity-50 cursor-pointer"
           >
             <Download size={14} />
             <span>{downloading ? "Preparing HTML..." : "Download Executive Report"}</span>

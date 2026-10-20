@@ -16,9 +16,15 @@ import {
   ArrowUpRight,
   Radio,
   Zap,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { useCurrency } from "@/context/currency-context";
 import { PrivacyValue } from "@/context/privacy-context";
+import { FadeIn, GlowCard, PulseRing, StaggerGrid, StaggerItem } from "@/components/ui/motion";
+import { useToast } from "@/context/toast-context";
+import { useSoundFX } from "@/context/sound-context";
+import { triggerMilestoneCelebration } from "@/lib/celebrate";
 
 type Bill = {
   id: number;
@@ -44,6 +50,8 @@ type DiscoveredBill = {
 
 export default function BillsPage() {
   const { formatCurrency } = useCurrency();
+  const { toast } = useToast();
+  const { playClick, playSuccess, playSettle, playCelebration } = useSoundFX();
   const [bills, setBills] = useState<Bill[]>([]);
   const [discoveredBills, setDiscoveredBills] = useState<DiscoveredBill[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +60,7 @@ export default function BillsPage() {
   const [formFrequency, setFormFrequency] = useState("Monthly");
   const [settlingId, setSettlingId] = useState<number | null>(null);
   const [acceptingRadarMerchant, setAcceptingRadarMerchant] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"visual" | "compact">("visual");
 
   async function loadData() {
     try {
@@ -163,14 +171,14 @@ export default function BillsPage() {
       });
       if (res.ok) {
         form.reset();
-        setToastMessage(`✓ Added recurring bill "${name}"!`);
+        playSuccess();
+        toast.success(`Added recurring bill "${name}"!`);
         await loadData();
-        setTimeout(() => setToastMessage(null), 3000);
       } else {
-        alert("Failed to add bill.");
+        toast.error("Failed to add bill.");
       }
     } catch (err) {
-      alert("Error adding bill: " + String(err));
+      toast.error(`Error adding bill: ${String(err)}`);
     } finally {
       setSubmitting(false);
     }
@@ -185,14 +193,22 @@ export default function BillsPage() {
         body: JSON.stringify({ auto_log_expense: true, account: "ICICI Savings Account" }),
       });
       if (res.ok) {
-        setToastMessage(`✓ Settle complete: "${billName}" marked as paid & logged into expenses!`);
+        playSettle();
+        if (overdueBills.length <= 1) {
+          triggerMilestoneCelebration();
+          playCelebration();
+          toast.success("🎉 All overdue bills cleared!", {
+            description: `"${billName}" settled & auto-recorded to expense ledger.`,
+          });
+        } else {
+          toast.success(`✓ "${billName}" settled & logged to expenses.`);
+        }
         await loadData();
-        setTimeout(() => setToastMessage(null), 4000);
       } else {
-        alert("Failed to settle bill.");
+        toast.error("Failed to settle bill.");
       }
     } catch (err) {
-      alert("Error settling bill: " + String(err));
+      toast.error(`Error settling bill: ${String(err)}`);
     } finally {
       setSettlingId(null);
     }
@@ -200,16 +216,17 @@ export default function BillsPage() {
 
   const handleToggleStatus = async (id: number) => {
     try {
+      playClick();
       const res = await fetchWithAuthClient(`/api/v1/bills/${id}/toggle-status`, {
         method: "PUT",
       });
       if (res.ok) {
         await loadData();
       } else {
-        alert("Failed to update status.");
+        toast.error("Failed to update status.");
       }
     } catch (err) {
-      alert("Error updating status: " + String(err));
+      toast.error(`Error updating status: ${String(err)}`);
     }
   };
 
@@ -220,12 +237,14 @@ export default function BillsPage() {
         method: "DELETE",
       });
       if (res.ok) {
+        playClick();
         setBills((prev) => prev.filter((b) => b.id !== id));
+        toast.info("Bill deleted from schedule.");
       } else {
-        alert("Failed to delete bill.");
+        toast.error("Failed to delete bill.");
       }
     } catch (err) {
-      alert("Error deleting bill: " + String(err));
+      toast.error(`Error deleting bill: ${String(err)}`);
     }
   };
 
@@ -243,15 +262,15 @@ export default function BillsPage() {
         }),
       });
       if (res.ok) {
-        setToastMessage(`✓ Tracked "${item.merchant}" into active bills!`);
+        playSuccess();
+        toast.success(`Tracked "${item.merchant}" into active bills!`);
         setDiscoveredBills((prev) => prev.filter((b) => b.merchant !== item.merchant));
         await loadData();
-        setTimeout(() => setToastMessage(null), 4000);
       } else {
-        alert("Failed to track discovered subscription.");
+        toast.error("Failed to track discovered subscription.");
       }
     } catch (err) {
-      alert("Error accepting bill: " + String(err));
+      toast.error(`Error accepting bill: ${String(err)}`);
     } finally {
       setAcceptingRadarMerchant(null);
     }
@@ -279,20 +298,23 @@ export default function BillsPage() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Page Header */}
-      <div className="space-y-1">
-        <h1 className="text-3xl font-bold tracking-tight">Recurring Bills & Reminders</h1>
-        <p className="text-muted-foreground">
-          Track monthly utilities, subscriptions, and auto-debits with proactive overdue tracking and 1-click ledger settlement.
-        </p>
-      </div>
-
-      {/* Toast Banner */}
-      {toastMessage && (
-        <div className="p-3 bg-emerald-50 text-emerald-900 border border-emerald-200 rounded-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in">
-          <CheckCircle2 size={16} className="text-emerald-600" />
-          <span>{toastMessage}</span>
+      <FadeIn>
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/20 bg-indigo-50/80 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-800 shadow-2xs">
+              <PulseRing color="#6366f1" size={6} /> Scheduled Liabilities & Subscriptions
+            </span>
+          </div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
+            Recurring Bills & Reminders
+          </h1>
+          <p className="text-sm text-slate-600">
+            Track monthly utilities, subscriptions, and auto-debits with proactive overdue tracking and 1-click ledger settlement.
+          </p>
         </div>
-      )}
+      </FadeIn>
+
+
 
       {/* OVERDUE CRITICAL BANNER (if any) */}
       {overdueBills.length > 0 && (
@@ -480,43 +502,81 @@ export default function BillsPage() {
       </Card>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card className={overdueBills.length > 0 ? "border-rose-300 bg-rose-50/20" : ""}>
-          <CardContent className="p-6">
-            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
-              Overdue Balance
+      <StaggerGrid className="grid gap-4 sm:grid-cols-3">
+        <StaggerItem>
+          <GlowCard
+            hoverColor={overdueBills.length > 0 ? "rgba(244, 63, 94, 0.25)" : "rgba(100, 116, 139, 0.15)"}
+            className={`border ${
+              overdueBills.length > 0
+                ? "border-rose-300 bg-gradient-to-br from-white via-rose-50/30 to-rose-50/50"
+                : "border-slate-200/80 bg-white"
+            } p-6 shadow-sm`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Overdue Balance
+              </span>
+              {overdueBills.length > 0 && (
+                <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-black uppercase text-rose-700">
+                  Critical
+                </span>
+              )}
             </div>
-            <div className={`text-2xl font-bold ${overdueBills.length > 0 ? "text-rose-600" : "text-slate-800"}`}>
+            <div
+              className={`text-3xl font-black tracking-tight ${
+                overdueBills.length > 0 ? "text-rose-600" : "text-slate-900"
+              }`}
+            >
               <PrivacyValue value={formatCurrency(totalOverdue)} />
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               {overdueBills.length} overdue invoice(s)
             </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
-              Upcoming Dues
+          </GlowCard>
+        </StaggerItem>
+
+        <StaggerItem>
+          <GlowCard
+            hoverColor="rgba(245, 158, 11, 0.2)"
+            className="border border-slate-200/80 bg-gradient-to-br from-white via-amber-50/20 to-white p-6 shadow-sm"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Upcoming Dues
+              </span>
+              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200">
+                This Month
+              </span>
             </div>
-            <div className="text-2xl font-bold text-amber-600">
+            <div className="text-3xl font-black tracking-tight text-amber-600">
               <PrivacyValue value={formatCurrency(totalUpcoming)} />
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               {dueTodayBills.length + upcomingBills.length} pending bill(s)
             </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
-              Settled this Month
+          </GlowCard>
+        </StaggerItem>
+
+        <StaggerItem>
+          <GlowCard
+            hoverColor="rgba(16, 185, 129, 0.2)"
+            className="border border-slate-200/80 bg-gradient-to-br from-white via-emerald-50/20 to-white p-6 shadow-sm"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Settled this Month
+              </span>
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                Recorded
+              </span>
             </div>
-            <div className="text-2xl font-bold text-emerald-600">{paidBills.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">Paid & ledger recorded</p>
-          </CardContent>
-        </Card>
-      </div>
+            <div className="text-3xl font-black tracking-tight text-emerald-600">
+              {paidBills.length}
+            </div>
+            <p className="text-xs text-slate-500 mt-1">Paid & ledger recorded</p>
+          </GlowCard>
+        </StaggerItem>
+      </StaggerGrid>
 
       {/* OVERDUE INVOICES LIST (if any) */}
       {overdueBills.length > 0 && (
@@ -572,62 +632,183 @@ export default function BillsPage() {
         </Card>
       )}
 
-      {/* Main Grid: Upcoming vs Settled */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Pending & Upcoming Bills */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold flex items-center justify-between">
-              <span>Pending & Upcoming Bills</span>
-              <span className="text-xs font-normal text-muted-foreground">
-                {dueTodayBills.length + upcomingBills.length} items
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {dueTodayBills.length === 0 && upcomingBills.length === 0 ? (
-              <div className="p-8 flex flex-col items-center justify-center text-slate-400 text-center space-y-2">
-                <Calendar className="h-10 w-10 text-slate-300" />
-                <p className="text-sm">All pending bills are paid up!</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {/* Due Today */}
-                {dueTodayBills.map((bill) => (
-                  <div key={`today-${bill.id}`} className="py-3 flex justify-between items-center gap-4 bg-amber-50/50 -mx-4 px-4">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-amber-500 text-white">
-                          Due Today
-                        </span>
-                        <p className="font-bold text-sm text-slate-900 truncate">{bill.name}</p>
-                      </div>
-                      <p className="text-xs text-amber-700">{renderDueLabel(bill, "today")}</p>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="font-bold text-sm text-slate-900">
-                        <PrivacyValue value={formatCurrency(bill.amount)} />
-                      </span>
-                      <button
-                        onClick={() => handleSettleBill(bill.id, bill.name)}
-                        disabled={settlingId === bill.id}
-                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                      >
-                        {settlingId === bill.id ? "..." : "Pay & Log"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+      {/* View Switcher Header */}
+      <div className="flex items-center justify-between pt-2">
+        <h3 className="text-lg font-bold text-slate-900">
+          {viewMode === "visual" ? "Active Scheduled Liabilities" : "High-Density Bills Ledger"}
+        </h3>
+        <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-100/80 p-1 text-xs">
+          <button
+            onClick={() => {
+              playClick();
+              setViewMode("visual");
+            }}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-semibold transition-all cursor-pointer ${
+              viewMode === "visual"
+                ? "bg-white text-slate-900 shadow-2xs"
+                : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <LayoutGrid size={13} /> Visual Cards
+          </button>
+          <button
+            onClick={() => {
+              playClick();
+              setViewMode("compact");
+            }}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-semibold transition-all cursor-pointer ${
+              viewMode === "compact"
+                ? "bg-white text-slate-900 shadow-2xs"
+                : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <List size={13} /> Compact Table
+          </button>
+        </div>
+      </div>
 
-                {/* Upcoming */}
-                {upcomingBills.map((bill) => {
-                  const daysAway = (bill.due_day || 1) - currentDay;
-                  return (
-                    <div key={bill.id} className="py-3 flex justify-between items-center gap-4">
+      {viewMode === "compact" ? (
+        <Card className="overflow-hidden rounded-2xl border-slate-200/80 shadow-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Bill / Provider</th>
+                  <th className="px-4 py-3">Cadence</th>
+                  <th className="px-4 py-3">Schedule</th>
+                  <th className="px-4 py-3 text-right">Amount</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {bills.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-400">
+                      No bills recorded in this ledger.
+                    </td>
+                  </tr>
+                ) : (
+                  bills.map((bill) => {
+                    const isOverdue = overdueBills.some((o) => o.id === bill.id);
+                    const isToday = dueTodayBills.some((t) => t.id === bill.id);
+                    const isPaid = bill.is_paid || bill.status === "Paid";
+
+                    return (
+                      <tr
+                        key={`compact-${bill.id}`}
+                        className={`transition-colors hover:bg-slate-50/80 ${
+                          isOverdue ? "bg-rose-50/20" : isToday ? "bg-amber-50/20" : ""
+                        }`}
+                      >
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              isPaid
+                                ? "bg-emerald-100 text-emerald-800"
+                                : isOverdue
+                                ? "bg-rose-100 text-rose-800 font-black"
+                                : isToday
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-slate-100 text-slate-700"
+                            }`}
+                          >
+                            {isPaid
+                              ? "Settled"
+                              : isOverdue
+                              ? "Overdue"
+                              : isToday
+                              ? "Due Today"
+                              : "Pending"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-bold text-slate-900">
+                          {bill.name}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500">
+                          {bill.frequency || "Monthly"}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500">
+                          {bill.frequency === "Monthly"
+                            ? `Day ${bill.due_day || 1}`
+                            : bill.due_date || "—"}
+                        </td>
+                        <td className="px-4 py-3 text-right font-black text-slate-900">
+                          <PrivacyValue value={formatCurrency(bill.amount)} />
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {!isPaid ? (
+                              <button
+                                onClick={() => handleSettleBill(bill.id, bill.name)}
+                                disabled={settlingId === bill.id}
+                                className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 transition-colors cursor-pointer disabled:opacity-50"
+                              >
+                                {settlingId === bill.id ? "..." : "Pay & Log"}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleToggleStatus(bill.id)}
+                                className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+                              >
+                                Reopen
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDeleteBill(bill.id)}
+                              className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : (
+        /* Main Grid: Upcoming vs Settled */
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Pending & Upcoming Bills */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-semibold flex items-center justify-between">
+                <span>Pending & Upcoming Bills</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  {dueTodayBills.length + upcomingBills.length} items
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dueTodayBills.length === 0 && upcomingBills.length === 0 ? (
+                <div className="p-8 flex flex-col items-center justify-center text-slate-400 text-center space-y-2">
+                  <Calendar className="h-10 w-10 text-slate-300" />
+                  <p className="text-sm">All pending bills are paid up!</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {/* Due Today */}
+                  {dueTodayBills.map((bill) => (
+                    <div
+                      key={`today-${bill.id}`}
+                      className="py-3 flex justify-between items-center gap-4 bg-amber-50/50 -mx-4 px-4"
+                    >
                       <div className="min-w-0">
-                        <p className="font-semibold text-sm text-slate-900 truncate">{bill.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {renderDueLabel(bill, "upcoming", daysAway)}
+                        <div className="flex items-center gap-2">
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-amber-500 text-white">
+                            Due Today
+                          </span>
+                          <p className="font-bold text-sm text-slate-900 truncate">
+                            {bill.name}
+                          </p>
+                        </div>
+                        <p className="text-xs text-amber-700">
+                          {renderDueLabel(bill, "today")}
                         </p>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
@@ -637,10 +818,98 @@ export default function BillsPage() {
                         <button
                           onClick={() => handleSettleBill(bill.id, bill.name)}
                           disabled={settlingId === bill.id}
-                          className="px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
-                          title="Settle bill & log expense"
+                          className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
                         >
                           {settlingId === bill.id ? "..." : "Pay & Log"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Upcoming */}
+                  {upcomingBills.map((bill) => {
+                    const daysAway = (bill.due_day || 1) - currentDay;
+                    return (
+                      <div
+                        key={bill.id}
+                        className="py-3 flex justify-between items-center gap-4"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm text-slate-900 truncate">
+                            {bill.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {renderDueLabel(bill, "upcoming", daysAway)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="font-bold text-sm text-slate-900">
+                            <PrivacyValue value={formatCurrency(bill.amount)} />
+                          </span>
+                          <button
+                            onClick={() => handleSettleBill(bill.id, bill.name)}
+                            disabled={settlingId === bill.id}
+                            className="px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
+                            title="Settle bill & log expense"
+                          >
+                            {settlingId === bill.id ? "..." : "Pay & Log"}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteBill(bill.id)}
+                            className="text-slate-400 hover:text-red-600 p-1 transition-colors cursor-pointer"
+                            title="Delete Bill"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Settled Bills */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-semibold flex items-center justify-between">
+                <span>Settled Bills</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  {paidBills.length} items
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {paidBills.length === 0 ? (
+                <div className="p-8 flex flex-col items-center justify-center text-slate-400 text-center space-y-2">
+                  <p className="text-sm">No settled bills for this period.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {paidBills.slice(0, 10).map((bill) => (
+                    <div
+                      key={bill.id}
+                      className="py-3 flex justify-between items-center gap-4 opacity-75"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-slate-800 line-through">
+                          {bill.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {renderDueLabel(bill, "settled")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium text-sm text-slate-600">
+                          <PrivacyValue value={formatCurrency(bill.amount)} />
+                        </span>
+                        <button
+                          onClick={() => handleToggleStatus(bill.id)}
+                          className="px-2 py-1 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded text-xs font-medium transition-colors flex items-center gap-1 cursor-pointer"
+                          title="Reopen as pending"
+                        >
+                          <RotateCcw size={12} /> Reopen
                         </button>
                         <button
                           onClick={() => handleDeleteBill(bill.id)}
@@ -651,60 +920,13 @@ export default function BillsPage() {
                         </button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Settled Bills */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold flex items-center justify-between">
-              <span>Settled Bills</span>
-              <span className="text-xs font-normal text-muted-foreground">{paidBills.length} items</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {paidBills.length === 0 ? (
-              <div className="p-8 flex flex-col items-center justify-center text-slate-400 text-center space-y-2">
-                <p className="text-sm">No settled bills for this period.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {paidBills.slice(0, 10).map((bill) => (
-                  <div key={bill.id} className="py-3 flex justify-between items-center gap-4 opacity-75">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800 line-through">{bill.name}</p>
-                      <p className="text-xs text-muted-foreground">{renderDueLabel(bill, "settled")}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium text-sm text-slate-600">
-                        <PrivacyValue value={formatCurrency(bill.amount)} />
-                      </span>
-                      <button
-                        onClick={() => handleToggleStatus(bill.id)}
-                        className="px-2 py-1 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded text-xs font-medium transition-colors flex items-center gap-1 cursor-pointer"
-                        title="Reopen as pending"
-                      >
-                        <RotateCcw size={12} /> Reopen
-                      </button>
-                      <button
-                        onClick={() => handleDeleteBill(bill.id)}
-                        className="text-slate-400 hover:text-red-600 p-1 transition-colors cursor-pointer"
-                        title="Delete Bill"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

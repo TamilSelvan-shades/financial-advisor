@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import ReceiptScannerModal from "@/components/receipt-scanner-modal";
+import VoiceLedgerModal from "@/components/voice-ledger-modal";
+import { Camera, GripVertical, MessageSquare, Mic, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Mic, Camera, MessageSquare, Sparkles, GripVertical } from "lucide-react";
-import VoiceLedgerModal from "@/components/voice-ledger-modal";
-import ReceiptScannerModal from "@/components/receipt-scanner-modal";
+import React, { useEffect, useRef, useState } from "react";
 
 export default function FloatingActionDock() {
   const router = useRouter();
@@ -56,9 +56,12 @@ export default function FloatingActionDock() {
     const target = e.target as HTMLElement;
     if (target.closest("button") || target.closest("a")) return;
     isDragging.current = true;
-    dragStart.current = { x: e.clientX - position.x, y: e.clientY - position.y };
+    dragStart.current = {
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    };
     if (dockRef.current) {
-        dockRef.current.setPointerCapture(e.pointerId);
+      dockRef.current.setPointerCapture(e.pointerId);
     }
   };
 
@@ -66,43 +69,48 @@ export default function FloatingActionDock() {
     if (!isDragging.current) return;
     setPosition({
       x: e.clientX - dragStart.current.x,
-      y: e.clientY - dragStart.current.y
+      y: e.clientY - dragStart.current.y,
     });
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
     isDragging.current = false;
     if (dockRef.current) {
-        dockRef.current.releasePointerCapture(e.pointerId);
+      dockRef.current.releasePointerCapture(e.pointerId);
     }
   };
 
   return (
     <>
       {/* Floating Bottom Center Dock */}
-      <aside 
+      <aside
         ref={dockRef}
-        aria-label="Quick Financial Actions Dock" 
-        className="fixed bottom-6 left-1/2 z-40 flex items-center gap-1.5 p-1.5 rounded-full bg-slate-950/85 backdrop-blur-xl border border-slate-700/60 shadow-2xl shadow-indigo-950/40 text-white select-none touch-none"
-        style={{ transform: `translate(calc(-50% + ${position.x}px), ${position.y}px)` }}
+        aria-label="Quick Financial Actions Dock"
+        className="fixed bottom-5 left-1/2 z-40 flex touch-none select-none items-center gap-1 rounded-lg border border-white/10 bg-[#15332f]/95 p-1.5 text-white shadow-[0_12px_34px_rgba(21,51,47,0.28)] backdrop-blur-xl"
+        style={{
+          transform: `translate(calc(-50% + ${position.x}px), ${position.y}px)`,
+        }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
         <div className="pl-1 pr-0.5 cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-300">
-           <GripVertical size={16} />
+          <GripVertical size={16} />
         </div>
         {/* 1. Quick Add Expense */}
         <Link
           href="/expenses?tab=log"
-          className="group relative flex items-center justify-center h-10 w-10 rounded-full hover:bg-slate-800 transition-all text-slate-300 hover:text-white"
+          className="group relative flex h-10 w-10 items-center justify-center rounded-md text-emerald-50/75 transition-colors hover:bg-white/10 hover:text-white"
           title="Log Expense (Press 'E')"
         >
-          <Plus size={18} className="transition-transform group-hover:scale-110 text-blue-400" />
+          <Plus
+            size={18}
+            className="transition-transform group-hover:scale-110 text-blue-400"
+          />
           <span className="sr-only">Log Expense</span>
           <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-[10px] font-semibold text-slate-200 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-md">
-            Add Expense <kbd className="text-[9px] text-slate-400 bg-slate-800 px-1 py-0.2 rounded ml-1">E</kbd>
+            Add expense
           </span>
         </Link>
 
@@ -110,13 +118,16 @@ export default function FloatingActionDock() {
         <button
           type="button"
           onClick={() => setVoiceOpen(true)}
-          className="group relative flex items-center justify-center h-10 w-10 rounded-full hover:bg-slate-800 transition-all text-slate-300 hover:text-white cursor-pointer"
+          className="group relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-md text-emerald-50/75 transition-colors hover:bg-white/10 hover:text-white"
           title="Voice Ledger (Press 'V')"
         >
-          <Mic size={18} className="transition-transform group-hover:scale-110 text-emerald-400" />
+          <Mic
+            size={18}
+            className="transition-transform group-hover:scale-110 text-emerald-400"
+          />
           <span className="sr-only">Voice Ledger</span>
           <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-[10px] font-semibold text-slate-200 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-md">
-            Voice Log <kbd className="text-[9px] text-slate-400 bg-slate-800 px-1 py-0.2 rounded ml-1">V</kbd>
+            Voice entry
           </span>
         </button>
 
@@ -127,26 +138,32 @@ export default function FloatingActionDock() {
         <button
           type="button"
           onClick={() => setScannerOpen(true)}
-          className="group relative flex items-center justify-center h-10 w-10 rounded-full hover:bg-slate-800 transition-all text-slate-300 hover:text-white cursor-pointer"
+          className="group relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-md text-emerald-50/75 transition-colors hover:bg-white/10 hover:text-white"
           title="Scan Receipt OCR (Press 'S')"
         >
-          <Camera size={18} className="transition-transform group-hover:scale-110 text-amber-400" />
+          <Camera
+            size={18}
+            className="transition-transform group-hover:scale-110 text-amber-400"
+          />
           <span className="sr-only">Scan Receipt</span>
           <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-[10px] font-semibold text-slate-200 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-md">
-            Scan Receipt <kbd className="text-[9px] text-slate-400 bg-slate-800 px-1 py-0.2 rounded ml-1">S</kbd>
+            Scan receipt
           </span>
         </button>
 
         {/* 4. AI Financial Advisor */}
         <Link
           href="/chat"
-          className="group relative flex items-center justify-center h-10 w-10 rounded-full bg-gradient-to-tr from-indigo-600 to-blue-500 hover:from-indigo-500 hover:to-blue-400 transition-all text-white shadow-md shadow-indigo-600/30"
+          className="group relative flex h-10 w-10 items-center justify-center rounded-md bg-emerald-300 text-[#15332f] shadow-sm transition-colors hover:bg-emerald-200"
           title="AI Advisor Chat (Press 'A')"
         >
-          <MessageSquare size={17} className="transition-transform group-hover:scale-110" />
+          <MessageSquare
+            size={17}
+            className="transition-transform group-hover:scale-110"
+          />
           <span className="sr-only">AI Advisor Chat</span>
           <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-[10px] font-semibold text-slate-200 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-md">
-            AI Advisor <kbd className="text-[9px] text-slate-400 bg-slate-800 px-1 py-0.2 rounded ml-1">A</kbd>
+            Ask advisor
           </span>
         </Link>
       </aside>

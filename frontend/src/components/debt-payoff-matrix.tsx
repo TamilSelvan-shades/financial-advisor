@@ -15,6 +15,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { chartTooltipStyle } from "@/components/ui/chart-tooltip";
 import { 
   ResponsiveContainer, 
   LineChart, 
@@ -462,8 +463,15 @@ export function DebtPayoffMatrix({ loans }: DebtPayoffMatrixProps) {
                   tickFormatter={(val) => `₹${val >= 100000 ? `${(val / 100000).toFixed(1)}L` : val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`}
                 />
                 <Tooltip
-                  formatter={(value: any, name: any) => [formatINR(Number(value)), name === "baseline" ? "Baseline Minimums" : name === "snowball" ? "Debt Snowball" : "Debt Avalanche"]}
-                  contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "8px", color: "#fff", fontSize: "12px" }}
+                  formatter={(value: any, name: any) => [
+                    formatINR(Number(value)),
+                    name === "baseline"
+                      ? "Baseline Minimums"
+                      : name === "snowball"
+                      ? "Debt Snowball"
+                      : "Debt Avalanche",
+                  ]}
+                  {...chartTooltipStyle}
                 />
                 <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} />
                 <Area type="monotone" dataKey="baseline" name="Baseline (Min. Only)" stroke="#94a3b8" strokeDasharray="4 4" fillOpacity={1} fill="url(#colorBase)" />

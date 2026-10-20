@@ -1,75 +1,117 @@
 "use client";
 
-import React from "react";
-import { Search, Eye, EyeOff, Sparkles, Activity, Menu } from "lucide-react";
 import CurrencySelector from "@/components/currency-selector";
 import NotificationBell from "@/components/notification-bell";
 import { usePrivacy } from "@/context/privacy-context";
+import { useSoundFX } from "@/context/sound-context";
+import { Eye, EyeOff, Menu, Search, Volume2, VolumeX, Keyboard } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 export default function DashboardTopBar() {
   const { isPrivate, togglePrivacy } = usePrivacy();
+  const { soundEnabled, toggleSound, playClick } = useSoundFX();
+  const pathname = usePathname();
+
+  const pageNames: Record<string, string> = {
+    "/dashboard": "Overview",
+    "/expenses": "Transactions",
+    "/loans": "Loans",
+    "/investments": "Investments",
+    "/goals": "Goals",
+    "/bills": "Bills",
+    "/credit": "Credit health",
+    "/tax": "Tax planner",
+    "/reports": "Briefings",
+    "/chat": "Advisor",
+  };
+  const pageName = pageNames[pathname] || "Workspace";
 
   const handleOpenCommandPalette = () => {
     window.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "k", ctrlKey: true, metaKey: true })
+      new KeyboardEvent("keydown", { key: "k", ctrlKey: true, metaKey: true }),
     );
   };
 
   return (
-    <header className="relative z-40 flex items-center justify-between gap-3 mb-6 shrink-0 py-1.5 px-3 rounded-2xl bg-white/70 backdrop-blur-md border border-slate-200/80 shadow-xs">
-      {/* Left: Brand Status Pill */}
+    <header className="sticky top-3 z-40 mb-6 flex min-h-12 shrink-0 items-center justify-between gap-3 rounded-lg border border-[#15332f]/10 bg-white/88 px-3 py-2 shadow-[0_8px_30px_rgba(21,51,47,0.08)] backdrop-blur-xl sm:px-4">
       <div className="flex items-center gap-2.5">
-        {/* Mobile Hamburger Menu */}
         <button
           onClick={() => window.dispatchEvent(new Event("toggleMobileSidebar"))}
-          className="md:hidden p-2 -ml-1 text-slate-500 hover:text-slate-800 transition-colors bg-white/50 rounded-xl"
+          className="-ml-1 rounded-md p-2 text-slate-500 transition-colors hover:bg-[#15332f]/5 hover:text-[#15332f] md:hidden"
+          aria-label="Open navigation"
         >
           <Menu size={18} />
         </button>
 
-        <div className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-extrabold tracking-tight text-[#15332f]">
+            {pageName}
           </span>
-          <span className="text-[11px] text-slate-500 uppercase tracking-wider font-bold">Cloud Ledger:</span>
-          <span className="text-emerald-700 font-bold">Active</span>
+          <span className="hidden h-4 w-px bg-slate-200 sm:block" />
+          <span className="hidden items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700 sm:flex">
+            <span className="soft-pulse h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Ledger synced
+          </span>
         </div>
       </div>
 
-      {/* Right: Quick Action Controls Cluster */}
       <div className="flex items-center gap-2 ml-auto">
-        {/* Quick Search / Command Palette Pill */}
         <button
           onClick={handleOpenCommandPalette}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/90 hover:bg-slate-200/80 border border-slate-200 text-slate-600 hover:text-slate-900 transition-all text-xs font-medium cursor-pointer"
+          className="flex cursor-pointer items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-medium text-slate-500 transition-colors hover:border-[#15332f]/20 hover:bg-[#15332f]/5 hover:text-[#15332f]"
           title="Open Command Palette (Ctrl+K / Cmd+K)"
         >
           <Search size={13} className="text-slate-500" />
-          <span className="hidden md:inline text-[11px]">Command Palette</span>
-          <kbd className="hidden sm:inline-block text-[10px] font-bold bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-500 shadow-2xs">
-            ⌘K
-          </kbd>
+          <span className="hidden text-[11px] md:inline">Search</span>
         </button>
 
-        {/* In-App Notification Center */}
         <NotificationBell />
 
-        {/* Privacy Toggle Pill */}
         <button
           onClick={togglePrivacy}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+          className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-2 text-xs font-semibold transition-colors ${
             isPrivate
-              ? "bg-amber-500/10 text-amber-700 border-amber-300 shadow-2xs"
-              : "bg-slate-100/90 hover:bg-slate-200/80 text-slate-600 hover:text-slate-900 border-slate-200"
+              ? "border-amber-300 bg-amber-50 text-amber-700"
+              : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-[#15332f]/5 hover:text-[#15332f]"
           }`}
           title="Toggle Privacy Mode (Alt+P to mask balances)"
         >
-          {isPrivate ? <EyeOff size={13} className="text-amber-600" /> : <Eye size={13} />}
-          <span className="hidden sm:inline text-[11px]">{isPrivate ? "Private" : "Mask"}</span>
+          {isPrivate ? (
+            <EyeOff size={13} className="text-amber-600" />
+          ) : (
+            <Eye size={13} />
+          )}
+          <span className="hidden text-[11px] sm:inline">
+            {isPrivate ? "Private" : "Mask"}
+          </span>
         </button>
 
-        {/* Currency Selector */}
+        <button
+          onClick={() => {
+            playClick();
+            toggleSound();
+          }}
+          className={`flex cursor-pointer items-center justify-center rounded-md border p-2 text-xs font-semibold transition-colors ${
+            soundEnabled
+              ? "border-slate-200 bg-slate-50 text-slate-600 hover:bg-[#15332f]/5 hover:text-[#15332f]"
+              : "border-slate-200 bg-slate-100/80 text-slate-400 line-through"
+          }`}
+          title={soundEnabled ? "Mute Sound FX (Press M)" : "Unmute Sound FX (Press M)"}
+        >
+          {soundEnabled ? <Volume2 size={13} className="text-emerald-600" /> : <VolumeX size={13} />}
+        </button>
+
+        <button
+          onClick={() => {
+            playClick();
+            window.dispatchEvent(new KeyboardEvent("keydown", { key: "?" }));
+          }}
+          className="hidden cursor-pointer items-center justify-center rounded-md border border-slate-200 bg-slate-50 p-2 text-xs font-medium text-slate-500 transition-colors hover:border-[#15332f]/20 hover:bg-[#15332f]/5 hover:text-[#15332f] sm:flex"
+          title="Keyboard Shortcuts (Press ?)"
+        >
+          <Keyboard size={13} />
+        </button>
+
         <CurrencySelector />
       </div>
     </header>
