@@ -987,6 +987,28 @@ def run_telegram_polling():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Auto-migrate subscriptions schema if needed (PostgreSQL & SQLite safe)
+    try:
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            dialect_name = engine.dialect.name
+            if dialect_name == "postgresql":
+                conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS plan_name VARCHAR DEFAULT 'free';"))
+                conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS ai_credits_used INTEGER DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS statement_imports_used INTEGER DEFAULT 0;"))
+            elif dialect_name == "sqlite":
+                res = conn.execute(text("PRAGMA table_info(subscriptions);")).fetchall()
+                col_names = [r[1] for r in res] if res else []
+                if "plan_name" not in col_names:
+                    conn.execute(text("ALTER TABLE subscriptions ADD COLUMN plan_name TEXT DEFAULT 'free';"))
+                if "ai_credits_used" not in col_names:
+                    conn.execute(text("ALTER TABLE subscriptions ADD COLUMN ai_credits_used INTEGER DEFAULT 0;"))
+                if "statement_imports_used" not in col_names:
+                    conn.execute(text("ALTER TABLE subscriptions ADD COLUMN statement_imports_used INTEGER DEFAULT 0;"))
+            print("[Lifespan] ✅ Subscriptions table schema verified.")
+    except Exception as mig_err:
+        print(f"[Lifespan] Subscriptions schema migration note: {mig_err}")
+
     scheduler.add_job(
         scheduled_financial_health_check,
         "cron",
@@ -1779,7 +1801,7 @@ def update_income(
 async def parse_statement_preview(
     file: UploadFile = File(...),
     password: Optional[str] = Form(None),
-    current_user: models.User = Depends(dependencies.verify_active_subscription)
+    current_user: models.User = Depends(dependencies.verify_statement_quota)
 ):
     """
     Parses a bank statement (PDF, Excel, CSV) and returns preview transactions with detected bank
@@ -1814,7 +1836,7 @@ async def upload_statement(
     replace_all: bool = Form(False),
     auto_create_account: bool = Form(True),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(dependencies.verify_active_subscription)
+    current_user: models.User = Depends(dependencies.verify_statement_quota)
 ):
     """
     Universal bank statement ingestion supporting HDFC, SBI, Axis, Kotak, ICICI, Amex, and generic PDFs/spreadsheets.
@@ -1955,7 +1977,7 @@ async def scan_receipt(
     auto_commit: bool = Form(False),
     account: Optional[str] = Form(None),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(dependencies.verify_active_subscription)
+    current_user: models.User = Depends(dependencies.verify_ai_quota)
 ):
     """
     Multimodal Camera Receipt & Invoice OCR Scanner using Gemini 2.5 Flash Vision.
@@ -2016,7 +2038,7 @@ async def voice_to_ledger(
     file: UploadFile = File(...),
     auto_commit: bool = Form(True),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(dependencies.verify_active_subscription)
+    current_user: models.User = Depends(dependencies.verify_ai_quota)
 ):
     """
     Multimodal Voice-to-Ledger Audio Ingestion using Gemini 2.5 Flash Audio.
@@ -2913,7 +2935,7 @@ def trigger_daily_briefing(
 # --- AI Agent Tools ---
 
 @app.post("/api/v1/chat", tags=["AI Agent"])
-def chat_with_agent(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: models.User = Depends(dependencies.verify_active_subscription)):
+def chat_with_agent(req: schemas.ChatRequest, db: Session = Depends(get_db), current_user: models.User = Depends(dependencies.verify_ai_quota)):
     if not ai_client:
         return {"reply": "Error: Gemini API key not configured on backend."}
 
@@ -3440,6 +3462,18 @@ def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+    # Automatically initialize Freemium subscription for the new user
+    new_sub = models.Subscription(
+        tenant_id=new_user.id,
+        status="free",
+        plan_name="free",
+        ai_credits_used=0,
+        statement_imports_used=0
+    )
+    db.add(new_sub)
+    db.commit()
+
     return new_user
 
 @app.post("/api/v1/auth/login", response_model=schemas.Token, tags=["Authentication"])
@@ -3464,8 +3498,18 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 @app.get("/api/v1/auth/me", tags=["Authentication"])
 def get_current_user_info(current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     subscription = db.query(models.Subscription).filter(models.Subscription.tenant_id == current_user.id).first()
-    
-    if subscription and subscription.razorpay_subscription_id and subscription.status != "active":
+    if not subscription:
+        subscription = models.Subscription(
+            tenant_id=current_user.id,
+            status="free",
+            plan_name="free",
+            ai_credits_used=0,
+            statement_imports_used=0
+        )
+        db.add(subscription)
+        db.commit()
+        db.refresh(subscription)
+    elif subscription.razorpay_subscription_id and subscription.status != "active":
         rzp_client = billing.get_rzp_client()
         if rzp_client:
             try:
@@ -3477,9 +3521,18 @@ def get_current_user_info(current_user: models.User = Depends(auth.get_current_u
             except Exception:
                 pass
 
+    is_pro = bool(subscription and subscription.status == "active")
+    plan = subscription.plan_name if subscription and subscription.plan_name else ("pro" if is_pro else "free")
+
     return {
         "id": current_user.id,
         "email": current_user.email,
         "is_active": current_user.is_active,
-        "subscription_status": subscription.status if subscription else "inactive"
+        "subscription_status": subscription.status,
+        "plan_name": plan,
+        "is_pro": is_pro,
+        "ai_credits_used": subscription.ai_credits_used if subscription.ai_credits_used is not None else 0,
+        "ai_credits_limit": 5,
+        "statement_imports_used": subscription.statement_imports_used if subscription.statement_imports_used is not None else 0,
+        "statement_imports_limit": 1
     }

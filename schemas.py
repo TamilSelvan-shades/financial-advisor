@@ -27,10 +27,28 @@ class SubscriptionResponse(BaseModel):
     razorpay_customer_id: Optional[str] = None
     razorpay_subscription_id: Optional[str] = None
     plan_id: Optional[str] = None
+    plan_name: Optional[str] = "free"
     status: str
+    ai_credits_used: Optional[int] = 0
+    statement_imports_used: Optional[int] = 0
 
     class Config:
         from_attributes = True
+
+class PaymentVerificationRequest(BaseModel):
+    razorpay_payment_id: str
+    razorpay_subscription_id: str
+    razorpay_signature: str
+    plan_name: Optional[str] = "pro"
+
+class UsageResponse(BaseModel):
+    status: str
+    plan_name: str
+    is_pro: bool
+    ai_credits_used: int
+    ai_credits_limit: int
+    statement_imports_used: int
+    statement_imports_limit: int
 
 # --- Expense Schemas ---
 class ExpenseCreate(BaseModel):

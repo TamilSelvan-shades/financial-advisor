@@ -38,6 +38,25 @@ export async function fetchWithAuthClient(
     headers,
   });
 
+  // Automatically trigger Upgrade Modal if user hits a Freemium limit
+  if (res.status === 403 && typeof window !== "undefined") {
+    try {
+      const clone = res.clone();
+      clone.json().then((errData) => {
+        const detail = errData.detail || "";
+        if (typeof detail === "string" && (detail.includes("FREE_LIMIT_REACHED") || detail.includes("PRO_REQUIRED"))) {
+          window.dispatchEvent(
+            new CustomEvent("open-upgrade-modal", {
+              detail: { reason: detail },
+            })
+          );
+        }
+      }).catch(() => {});
+    } catch (e) {
+      // Non-blocking
+    }
+  }
+
   // Automatically log out if the backend rejects the token (e.g. wiped database)
   if (res.status === 401) {
     if (typeof document !== "undefined") {

@@ -5,12 +5,15 @@ import { AuthShell } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Crown, Sparkles, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const planParam = searchParams.get("plan");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -30,6 +33,9 @@ export default function RegisterPage() {
     }
   }
 
+  const isPro = planParam === "pro";
+  const isPlus = planParam === "plus";
+
   return (
     <AuthShell
       eyebrow="Start your record"
@@ -38,6 +44,35 @@ export default function RegisterPage() {
     >
       <form onSubmit={handleSubmit}>
         <div className="space-y-5">
+          {/* Plan badge banner if user navigated from pricing */}
+          {isPro && (
+            <div className="flex items-center gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-900 font-medium">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#15332f] text-[#41e296]">
+                <Crown size={12} className="fill-[#41e296]" />
+              </span>
+              <div>
+                <span className="font-bold text-[#15332f]">Selected Tier: AI Advisor Pro</span>
+                <span className="block text-[11px] text-[#48615d]">
+                  Founding Member special (₹499/mo) ready to activate in your workspace.
+                </span>
+              </div>
+            </div>
+          )}
+
+          {isPlus && (
+            <div className="flex items-center gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-900 font-medium">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#15332f] text-[#41e296]">
+                <Sparkles size={12} />
+              </span>
+              <div>
+                <span className="font-bold text-[#15332f]">Selected Tier: Ledgerly Plus</span>
+                <span className="block text-[11px] text-[#48615d]">
+                  Includes 7-day free trial of unlimited Fast Capture & statement ingestion.
+                </span>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div
               role="alert"
@@ -93,7 +128,7 @@ export default function RegisterPage() {
             className="h-11 w-full bg-[#15332f] font-bold text-white hover:bg-[#214943]"
             disabled={loading}
           >
-            {loading ? "Creating account..." : "Create account"}
+            {loading ? "Creating account..." : isPro ? "Create Account & Unlock Pro" : "Create free account"}
           </Button>
           <div className="text-center text-sm text-[#5d716d]">
             Already have an account?{" "}
@@ -107,5 +142,13 @@ export default function RegisterPage() {
         </div>
       </form>
     </AuthShell>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#f7f7f2]" />}>
+      <RegisterForm />
+    </Suspense>
   );
 }

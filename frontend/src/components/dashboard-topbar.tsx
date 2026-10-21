@@ -4,12 +4,14 @@ import CurrencySelector from "@/components/currency-selector";
 import NotificationBell from "@/components/notification-bell";
 import { usePrivacy } from "@/context/privacy-context";
 import { useSoundFX } from "@/context/sound-context";
-import { Eye, EyeOff, Menu, Search, Volume2, VolumeX, Keyboard } from "lucide-react";
+import { Eye, EyeOff, Menu, Search, Volume2, VolumeX, Keyboard, Crown, Zap, Sparkles } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useUpgradeModal } from "@/context/upgrade-modal-context";
 
 export default function DashboardTopBar() {
   const { isPrivate, togglePrivacy } = usePrivacy();
   const { soundEnabled, toggleSound, playClick } = useSoundFX();
+  const { userUsage, openUpgradeModal } = useUpgradeModal();
   const pathname = usePathname();
 
   const pageNames: Record<string, string> = {
@@ -52,6 +54,29 @@ export default function DashboardTopBar() {
             <span className="soft-pulse h-1.5 w-1.5 rounded-full bg-emerald-500" />
             Ledger synced
           </span>
+
+          {userUsage && (
+            <>
+              <span className="hidden h-4 w-px bg-slate-200 sm:block" />
+              {userUsage.is_pro ? (
+                <span className="hidden items-center gap-1.5 rounded-full border border-emerald-300/80 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 sm:flex">
+                  <Crown size={12} className="text-emerald-600 fill-emerald-500" />
+                  <span>Pro Member</span>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openUpgradeModal({ reason: "Taste of Pro Header Meter" })}
+                  className="hidden cursor-pointer items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold text-amber-900 transition-colors hover:bg-amber-100 sm:flex"
+                  title="Free Plan: Taste of Pro Usage Meter"
+                >
+                  <Zap size={11} className="text-amber-600 fill-amber-500" />
+                  <span>{Math.max(0, (userUsage.ai_credits_limit || 5) - (userUsage.ai_credits_used || 0))}/5 AI Credits</span>
+                  <span className="rounded bg-amber-200/80 px-1 py-0.2 text-[9px] uppercase tracking-wider text-amber-950 font-extrabold">Upgrade</span>
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
 

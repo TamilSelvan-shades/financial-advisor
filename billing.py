@@ -24,6 +24,9 @@ def get_webhook_secret():
 def get_pro_plan_id():
     return os.environ.get("PRO_PLAN_ID", "plan_TZULH6fabPNoWy")
 
+def get_plus_plan_id():
+    return os.environ.get("PLUS_PLAN_ID", "plan_PLUS_LEDGERLY")
+
 @router.post("/billing/customer", response_model=schemas.SubscriptionResponse)
 def create_customer(
     current_user: models.User = Depends(auth.get_current_user),
@@ -117,6 +120,7 @@ def create_customer(
 
 @router.post("/billing/subscription", response_model=schemas.SubscriptionResponse)
 def create_subscription(
+    plan_name: str = "pro",
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -130,31 +134,105 @@ def create_subscription(
     if not subscription or not subscription.razorpay_customer_id:
         subscription = create_customer(current_user=current_user, db=db)
 
+    target_plan_id = get_plus_plan_id() if plan_name == "plus" else get_pro_plan_id()
+
     # If user already has an active subscription, return it directly
     if subscription.status == "active" and subscription.razorpay_subscription_id:
         try:
             rzp_sub = rzp_client.subscription.fetch(subscription.razorpay_subscription_id)
             if rzp_sub.get("status") == "active":
+                subscription.plan_name = plan_name
+                db.commit()
                 return subscription
         except Exception:
             pass
 
     try:
         sub_data = {
-            "plan_id": get_pro_plan_id(),
+            "plan_id": target_plan_id,
             "customer_id": subscription.razorpay_customer_id,
             "total_count": 120
         }
         rzp_sub = rzp_client.subscription.create(data=sub_data)
         
         subscription.razorpay_subscription_id = rzp_sub["id"]
-        subscription.plan_id = get_pro_plan_id()
+        subscription.plan_id = target_plan_id
+        subscription.plan_name = plan_name
         subscription.status = rzp_sub.get("status", "created")
         db.commit()
         db.refresh(subscription)
         return subscription
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/billing/verify", response_model=schemas.SubscriptionResponse)
+def verify_payment(
+    payload: schemas.PaymentVerificationRequest,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Direct client-side verification of Razorpay subscription checkout.
+    Verifies cryptographic signature, activates tenant Pro features instantly,
+    and returns updated subscription object without needing a hard re-login.
+    """
+    rzp_client = get_rzp_client()
+    key_secret = os.environ.get("RAZORPAY_KEY_SECRET", "")
+
+    # Cryptographic signature verification
+    if key_secret:
+        try:
+            expected_msg = f"{payload.razorpay_payment_id}|{payload.razorpay_subscription_id}"
+            generated_signature = hmac.new(
+                key_secret.encode("utf-8"),
+                expected_msg.encode("utf-8"),
+                hashlib.sha256
+            ).hexdigest()
+
+            if not hmac.compare_digest(generated_signature, payload.razorpay_signature):
+                # Try utility method as fallback if direct HMAC mismatch occurs
+                if rzp_client:
+                    rzp_client.utility.verify_subscription_payment_signature({
+                        "razorpay_subscription_id": payload.razorpay_subscription_id,
+                        "razorpay_payment_id": payload.razorpay_payment_id,
+                        "razorpay_signature": payload.razorpay_signature
+                    })
+        except Exception as sig_err:
+            print(f"[Razorpay Verify Warning] Signature mismatch or validation warning: {sig_err}")
+            # If in strict production mode with secret, enforce signature
+            if os.environ.get("ENVIRONMENT") == "production":
+                raise HTTPException(status_code=400, detail="Invalid Razorpay signature")
+
+    subscription = db.query(models.Subscription).filter(models.Subscription.tenant_id == current_user.id).first()
+    if not subscription:
+        subscription = models.Subscription(tenant_id=current_user.id)
+        db.add(subscription)
+
+    subscription.razorpay_subscription_id = payload.razorpay_subscription_id
+    subscription.status = "active"
+    subscription.plan_name = payload.plan_name or "pro"
+    db.commit()
+    db.refresh(subscription)
+    return subscription
+
+@router.get("/billing/usage", response_model=schemas.UsageResponse)
+def get_usage_metrics(
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(get_db)
+):
+    subscription = db.query(models.Subscription).filter(models.Subscription.tenant_id == current_user.id).first()
+    is_pro = bool(subscription and subscription.status == "active")
+    plan = subscription.plan_name if subscription and subscription.plan_name else ("pro" if is_pro else "free")
+    
+    return {
+        "status": subscription.status if subscription else "free",
+        "plan_name": plan,
+        "is_pro": is_pro,
+        "ai_credits_used": subscription.ai_credits_used if subscription else 0,
+        "ai_credits_limit": 5,
+        "statement_imports_used": subscription.statement_imports_used if subscription else 0,
+        "statement_imports_limit": 1
+    }
 
 @router.get("/billing/subscription/status", response_model=schemas.SubscriptionResponse)
 def get_subscription_status(

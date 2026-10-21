@@ -43,7 +43,10 @@ class Subscription(Base):
     razorpay_customer_id = Column(String, nullable=True)
     razorpay_subscription_id = Column(String, nullable=True)
     plan_id = Column(String, nullable=True)
-    status = Column(String, default="inactive")
+    plan_name = Column(String, default="free")  # "free", "plus", "pro"
+    status = Column(String, default="free")  # "free", "active", "cancelled"
+    ai_credits_used = Column(Integer, default=0)
+    statement_imports_used = Column(Integer, default=0)
 
     tenant = relationship("User", back_populates="subscription")
 

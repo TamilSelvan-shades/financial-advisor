@@ -94,11 +94,12 @@ export default function ChatPage() {
           { role: "assistant", content: data.reply || "No response received." },
         ]);
       } else {
+        const errData = await res.json().catch(() => ({}));
         setMessages((prev) => [
           ...prev,
           {
             role: "assistant",
-            content: `Error from AI backend (Status ${res.status}). Please check your connection.`,
+            content: errData.detail || `Error from AI backend (Status ${res.status}). Please check your plan limits.`,
           },
         ]);
       }

@@ -65,14 +65,23 @@ export default function BillingPage() {
         description: "Monthly Pro Subscription",
         image: "https://your-logo-url.png",
         handler: async function (response: any) {
-          // Force backend to sync the latest status from Razorpay
           try {
-             await fetchWithAuthClient("/api/v1/billing/subscription/status");
+            await fetchWithAuthClient("/api/v1/billing/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_subscription_id: response.razorpay_subscription_id,
+                razorpay_signature: response.razorpay_signature,
+                plan_name: "pro",
+              }),
+            });
+            await fetchWithAuthClient("/api/v1/billing/subscription/status");
           } catch(e) {
-             console.error("Failed to sync status", e);
+             console.error("Failed to verify subscription status", e);
           }
           router.push("/dashboard");
-          router.refresh(); // Refresh the server components
+          router.refresh();
         },
         theme: {
           color: "#0f172a", // slate-900

@@ -30,10 +30,14 @@ import {
   User,
   WalletCards,
   X,
+  Crown,
+  Zap,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useUpgradeModal } from "@/context/upgrade-modal-context";
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
@@ -41,6 +45,7 @@ export default function DashboardSidebar() {
   const activeTabParam = searchParams.get("tab") || "monthly";
   const { isPrivate, togglePrivacy } = usePrivacy();
   const { currency, currencyMeta } = useCurrency();
+  const { userUsage, openUpgradeModal } = useUpgradeModal();
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   // Auto-expand Expenses sub-menu if currently on /expenses
@@ -327,6 +332,69 @@ export default function DashboardSidebar() {
             );
           })}
         </nav>
+
+        {/* Freemium Usage Meter / Pro Status Card */}
+        {userUsage && (
+          <div className="px-1 mb-2">
+            {userUsage.is_pro ? (
+              <div className="rounded-xl border border-emerald-400/25 bg-gradient-to-br from-emerald-500/15 via-[#122b22] to-teal-900/30 p-3 shadow-sm">
+                <div className="flex items-center justify-between text-xs font-bold text-white">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-[#41e296]" />
+                    <span>{userUsage.plan_name === "plus" ? "Ledgerly Plus" : "AI Advisor Pro"}</span>
+                  </span>
+                  <span className="rounded-full bg-[#41e296]/20 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-[#41e296]">
+                    Active
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-emerald-100/70">
+                  Unlimited AI advisor, voice notes & statement ingestion
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 backdrop-blur-md">
+                <div className="flex items-center justify-between text-xs font-semibold text-emerald-100">
+                  <span className="flex items-center gap-1.5">
+                    <Zap size={13} className="text-amber-400" />
+                    <span>Free Plan</span>
+                  </span>
+                  <span className="font-mono text-[10px] text-emerald-300">
+                    {Math.max(0, (userUsage.ai_credits_limit || 5) - (userUsage.ai_credits_used || 0))}/5 AI Left
+                  </span>
+                </div>
+
+                {/* Progress bar */}
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/40">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-amber-400 to-[#41e296] transition-all duration-300"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        (((userUsage.ai_credits_used || 0) / (userUsage.ai_credits_limit || 5)) * 100)
+                      )}%`,
+                    }}
+                  />
+                </div>
+
+                <div className="mt-2 flex items-center justify-between text-[10px] text-emerald-50/60">
+                  <span>
+                    Imports: {Math.max(0, (userUsage.statement_imports_limit || 1) - (userUsage.statement_imports_used || 0))}/1 free
+                  </span>
+                  <span className="text-emerald-300 font-medium">Taste of Pro</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => openUpgradeModal({ reason: "Upgrade to AI Advisor Pro for unlimited fast capture, chat, and statements." })}
+                  className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#41e296] py-1.5 text-xs font-bold text-[#122b22] shadow transition-colors hover:bg-emerald-300"
+                >
+                  <Crown size={12} className="fill-[#122b22]" />
+                  <span>Upgrade to Pro</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Footer User, Privacy Mode & Logout */}
         <div className="mt-auto space-y-1.5 border-t border-white/8 pt-3">
