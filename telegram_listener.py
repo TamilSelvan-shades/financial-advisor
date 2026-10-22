@@ -35,9 +35,9 @@ client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 
 def send_message(text: str, chat_id: str = None, reply_markup: dict = None):
-    target_chat = chat_id or TELEGRAM_CHAT_ID
-    if not TELEGRAM_BOT_TOKEN or not target_chat:
+    if not TELEGRAM_BOT_TOKEN or not chat_id or not str(chat_id).strip():
         return
+    target_chat = str(chat_id).strip()
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": target_chat,
@@ -70,10 +70,9 @@ def answer_callback_query(callback_query_id: str, text: str = "Processing..."):
 
 
 def get_user_for_chat(db, chat_id: str):
-    user = db.query(models.User).filter(models.User.telegram_chat_id == str(chat_id)).first()
-    if not user:
-        user = db.query(models.User).filter(models.User.is_active == True).first()
-    return user
+    if not chat_id or not str(chat_id).strip():
+        return None
+    return db.query(models.User).filter(models.User.telegram_chat_id == str(chat_id).strip()).first()
 
 
 def check_budget_threshold_alert(db, category_name: str, tenant_id: str):
@@ -294,6 +293,9 @@ def process_with_gemini(user_text: str, chat_id: str):
             token = parts[1].strip()
             target_user = db.query(models.User).filter(models.User.telegram_link_token == token).first()
             if target_user:
+                existing_user = db.query(models.User).filter(models.User.telegram_chat_id == str(chat_id)).first()
+                if existing_user and str(existing_user.id) != str(target_user.id):
+                    existing_user.telegram_chat_id = None
                 target_user.telegram_chat_id = str(chat_id)
                 target_user.telegram_link_token = None
                 db.commit()
@@ -315,7 +317,14 @@ def process_with_gemini(user_text: str, chat_id: str):
     user = get_user_for_chat(db, chat_id)
     if not user:
         db.close()
-        return "No active user account found in database. Please register first.", None
+        return (
+            "👋 Welcome! This Telegram account is not yet connected to your Personal AI Advisor account.\n\n"
+            "To connect your account:\n"
+            "1. Open your Financial Dashboard\n"
+            "2. Go to **Notification Settings -> Telegram Bot**\n"
+            "3. Click **'Open Telegram Bot (1-Click)'** to link instantly.",
+            None,
+        )
 
     tenant_id = user.id
     today = datetime.date.today().strftime("%Y-%m-%d")

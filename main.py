@@ -300,16 +300,7 @@ def scheduled_financial_health_check():
             .filter(models.User.is_active == True)
             .all()
         )
-        env_chat_id = os.getenv("TELEGRAM_CHAT_ID")
         for user in users:
-            # Auto-link fallback if user has no telegram_chat_id in DB
-            if not user.telegram_chat_id and env_chat_id:
-                user.telegram_chat_id = env_chat_id
-                try:
-                    db.commit()
-                except Exception:
-                    db.rollback()
-
             try:
                 res = notification_dispatcher.dispatch_daily_briefing(db, user)
                 reports.append({
@@ -813,18 +804,9 @@ def handle_telegram_update(update: dict):
                 token = parts[1].strip()
                 target_user = db.query(models.User).filter(models.User.telegram_link_token == token).first()
 
-            # If no token in command, or token expired, link user who recently initiated Telegram connect
-            if not target_user and not user:
-                target_user = (
-                    db.query(models.User)
-                    .filter(models.User.telegram_link_token.isnot(None))
-                    .order_by(models.User.id.desc())
-                    .first()
-                )
-
             if target_user:
                 existing_user = db.query(models.User).filter(models.User.telegram_chat_id == sender_id).first()
-                if existing_user and existing_user.id != target_user.id:
+                if existing_user and str(existing_user.id) != str(target_user.id):
                     existing_user.telegram_chat_id = None
 
                 target_user.telegram_chat_id = sender_id
@@ -842,9 +824,10 @@ def handle_telegram_update(update: dict):
             elif not user:
                 send_telegram_alert(
                     f"👋 Hello! Your Telegram Chat ID is: `{sender_id}`\n\n"
-                    "To link your account, either:\n"
-                    "1. Click 'Connect Telegram' from your Financial Dashboard, or\n"
-                    f"2. Enter Chat ID `{sender_id}` in your Dashboard Notification Settings under 'Advanced: Enter Telegram Chat ID'.",
+                    "To link your account to your Personal AI Financial Advisor:\n"
+                    "1. Open your Financial Dashboard\n"
+                    "2. Go to **Notification Settings -> Telegram Bot**\n"
+                    "3. Click **'Open Telegram Bot (1-Click)'** or enter Chat ID `{sender_id}` under 'Advanced: Enter Telegram Chat ID'.",
                     sender_id,
                 )
                 return
@@ -1046,22 +1029,49 @@ async def lifespan(app: FastAPI):
         poller_thread = threading.Thread(target=run_telegram_polling, daemon=True)
         poller_thread.start()
 
-    # Auto-link local dev Telegram Chat ID if configured in .env
-    env_chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    if env_chat_id:
-        db_boot = SessionLocal()
-        try:
-            existing = db_boot.query(models.User).filter(models.User.telegram_chat_id == env_chat_id).first()
-            if not existing:
-                u = db_boot.query(models.User).filter(models.User.telegram_chat_id.is_(None)).order_by(models.User.id.asc()).first()
-                if u:
-                    u.telegram_chat_id = env_chat_id
-                    print(f"[Lifespan] Auto-linked user {u.email} to TELEGRAM_CHAT_ID {env_chat_id}")
+    # Security Integrity Check: Clean up any cross-account telegram_chat_id leaks and enforce uniqueness
+    db_boot = SessionLocal()
+    try:
+        from collections import defaultdict
+        all_users = db_boot.query(models.User).order_by(models.User.id.asc()).all()
+        env_chat_id = (os.getenv("TELEGRAM_CHAT_ID") or "").strip()
+
+        # 1. Deduplicate any duplicate telegram_chat_id across users
+        chat_map = defaultdict(list)
+        for u in all_users:
+            if u.telegram_chat_id:
+                chat_map[str(u.telegram_chat_id).strip()].append(u)
+
+        for cid, user_list in chat_map.items():
+            if len(user_list) > 1:
+                # Keep the primary owner (the first user created) and clear secondary duplicates
+                for dupe in user_list[1:]:
+                    print(f"[Lifespan Sanitizer] 🛡️ Cleared leaked telegram_chat_id {cid} from duplicate user {dupe.email}")
+                    dupe.telegram_chat_id = None
+                db_boot.commit()
+
+        # 2. Clear env_chat_id from any non-primary users if erroneously attached
+        if env_chat_id and len(all_users) > 1:
+            for secondary in all_users[1:]:
+                if secondary.telegram_chat_id == env_chat_id:
+                    print(f"[Lifespan Sanitizer] 🛡️ Cleared leaked env TELEGRAM_CHAT_ID from secondary user {secondary.email}")
+                    secondary.telegram_chat_id = None
                     db_boot.commit()
-        except Exception as e:
-            print(f"[Lifespan] Auto-link warning: {e}")
-        finally:
-            db_boot.close()
+
+        # 3. Permanently enforce database-level unique index on telegram_chat_id and whatsapp_phone_number
+        with engine.begin() as conn:
+            dialect_name = engine.dialect.name
+            if dialect_name == "postgresql":
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_users_telegram_chat_id ON users (telegram_chat_id) WHERE telegram_chat_id IS NOT NULL;"))
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_users_whatsapp_phone ON users (whatsapp_phone_number) WHERE whatsapp_phone_number IS NOT NULL;"))
+            elif dialect_name == "sqlite":
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_users_telegram_chat_id ON users (telegram_chat_id);"))
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_users_whatsapp_phone ON users (whatsapp_phone_number);"))
+        print("[Lifespan] ✅ Strict tenant notification isolation verified.")
+    except Exception as e:
+        print(f"[Lifespan] Sanitizer notice: {e}")
+    finally:
+        db_boot.close()
 
     yield
 
@@ -3345,6 +3355,16 @@ def update_notification_preferences(
 
     if prefs.whatsapp_phone_number is not None:
         cleaned = whatsapp_service.clean_phone_number(prefs.whatsapp_phone_number)
+        if cleaned:
+            conflict = db.query(models.User).filter(
+                models.User.whatsapp_phone_number == cleaned,
+                models.User.id != current_user.id
+            ).first()
+            if conflict:
+                raise HTTPException(
+                    status_code=400,
+                    detail="This WhatsApp phone number is already connected to another account."
+                )
         current_user.whatsapp_phone_number = cleaned
 
     if prefs.preferred_briefing_time is not None:
@@ -3352,7 +3372,18 @@ def update_notification_preferences(
 
     if prefs.telegram_chat_id is not None:
         t_id = prefs.telegram_chat_id.strip()
-        current_user.telegram_chat_id = t_id if t_id else None
+        new_id = t_id if t_id else None
+        if new_id:
+            conflict = db.query(models.User).filter(
+                models.User.telegram_chat_id == new_id,
+                models.User.id != current_user.id
+            ).first()
+            if conflict:
+                raise HTTPException(
+                    status_code=400,
+                    detail="This Telegram Chat ID is already connected to another account."
+                )
+        current_user.telegram_chat_id = new_id
 
     db.commit()
     db.refresh(current_user)

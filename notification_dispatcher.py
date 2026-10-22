@@ -29,6 +29,8 @@ def send_telegram_alert_direct(
 ) -> Dict[str, Any]:
     """Helper to dispatch a Telegram alert message directly."""
     token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if not token or not chat_id or not str(chat_id).strip():
+        return {"status": "skipped", "reason": "Missing TELEGRAM_BOT_TOKEN or chat_id"}
 
     # Auto-detect if parameters were passed in reverse order (e.g. text, chat_id)
     s1, s2 = str(chat_id or "").strip(), str(text or "").strip()
@@ -48,8 +50,8 @@ def send_telegram_alert_direct(
             actual_chat_id = s2
             actual_text = s1
 
-    if not token or not actual_chat_id:
-        return {"status": "skipped", "reason": "Missing TELEGRAM_BOT_TOKEN or chat_id"}
+    if not actual_chat_id:
+        return {"status": "skipped", "reason": "Missing valid chat_id"}
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
@@ -126,9 +128,8 @@ def dispatch_daily_briefing(
     else:
         results["channels"]["whatsapp"] = {"status": "skipped", "reason": "Channel disabled or phone not linked"}
 
-    # 2. Telegram Delivery (fallback to env TELEGRAM_CHAT_ID if user.telegram_chat_id is missing)
-    tg_chat_id = user.telegram_chat_id or os.getenv("TELEGRAM_CHAT_ID")
-    if should_send_to_channel(user, "telegram") and tg_chat_id:
+    # 2. Telegram Delivery (Strict tenant isolation: only send if the user has linked their telegram_chat_id)
+    if should_send_to_channel(user, "telegram") and user.telegram_chat_id:
         tg_text = reminder_service.format_daily_status_telegram_message(status_data, user_name)
         actionable_bills = (
             status_data["bills"].get("overdue_bills", []) +
@@ -137,13 +138,13 @@ def dispatch_daily_briefing(
         tg_markup = reminder_service.build_bills_inline_keyboard(actionable_bills)
 
         tg_res = send_telegram_alert_direct(
-            chat_id=tg_chat_id,
+            chat_id=user.telegram_chat_id,
             text=tg_text,
             reply_markup=tg_markup,
         )
         results["channels"]["telegram"] = tg_res
     else:
-        results["channels"]["telegram"] = {"status": "skipped", "reason": "Channel disabled or chat_id not linked"}
+        results["channels"]["telegram"] = {"status": "skipped", "reason": "Channel disabled or telegram_chat_id not linked"}
 
     return results
 
