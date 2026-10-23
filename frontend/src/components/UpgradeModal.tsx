@@ -33,6 +33,7 @@ export default function UpgradeModal() {
     billingCycle,
     setBillingCycle,
     markProActive,
+    userUsage,
   } = useUpgradeModal();
 
   const { showToast } = useToast();
@@ -134,10 +135,11 @@ export default function UpgradeModal() {
 
             if (!verifyRes.ok) {
               const verifyErr = await verifyRes.json().catch(() => ({}));
-              console.warn("Verify check notification:", verifyErr);
+              console.error("Verify check notification:", verifyErr);
+              throw new Error(verifyErr.detail || "Payment verification failed.");
             }
 
-            // Instantly activate Pro in UI state
+            // Instantly activate Pro in UI state only on successful verification
             markProActive(selectedPlan);
             closeUpgradeModal();
 
@@ -150,12 +152,17 @@ export default function UpgradeModal() {
             });
           } catch (e: any) {
             console.error("Verification error:", e);
-            markProActive(selectedPlan);
-            closeUpgradeModal();
+            setError(e.message || "Payment verification failed. Please contact support if your payment was deducted.");
+            showToast({
+              type: "error",
+              message: "Payment Verification Failed",
+              description: e.message || "Could not verify your payment. Please try again or contact support.",
+            });
           }
         },
         prefill: {
           name: "Ledgerly Member",
+          email: userUsage?.email,
         },
         theme: {
           color: "#15332f",

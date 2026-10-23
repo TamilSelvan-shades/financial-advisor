@@ -66,7 +66,7 @@ export default function BillingPage() {
         image: "https://your-logo-url.png",
         handler: async function (response: any) {
           try {
-            await fetchWithAuthClient("/api/v1/billing/verify", {
+            const verifyRes = await fetchWithAuthClient("/api/v1/billing/verify", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -76,12 +76,17 @@ export default function BillingPage() {
                 plan_name: "pro",
               }),
             });
+            if (!verifyRes.ok) {
+              const verifyErr = await verifyRes.json().catch(() => ({}));
+              throw new Error(verifyErr.detail || "Payment verification failed.");
+            }
             await fetchWithAuthClient("/api/v1/billing/subscription/status");
-          } catch(e) {
+            router.push("/dashboard");
+            router.refresh();
+          } catch(e: any) {
              console.error("Failed to verify subscription status", e);
+             setError(e.message || "Payment verification failed. Please contact support.");
           }
-          router.push("/dashboard");
-          router.refresh();
         },
         theme: {
           color: "#0f172a", // slate-900

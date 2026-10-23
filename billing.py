@@ -25,7 +25,7 @@ def get_pro_plan_id():
     return os.environ.get("PRO_PLAN_ID", "plan_TZULH6fabPNoWy")
 
 def get_plus_plan_id():
-    return os.environ.get("PLUS_PLAN_ID", "plan_PLUS_LEDGERLY")
+    return os.environ.get("PLUS_PLAN_ID", "plan_TrFQOMwfHZPKUe")
 
 @router.post("/billing/customer", response_model=schemas.SubscriptionResponse)
 def create_customer(
@@ -39,7 +39,13 @@ def create_customer(
     subscription = db.query(models.Subscription).filter(models.Subscription.tenant_id == current_user.id).first()
     
     if not subscription:
-        subscription = models.Subscription(tenant_id=current_user.id)
+        subscription = models.Subscription(
+            tenant_id=current_user.id,
+            status="free",
+            plan_name="free",
+            ai_credits_used=0,
+            statement_imports_used=0
+        )
         db.add(subscription)
         db.commit()
         db.refresh(subscription)
@@ -49,68 +55,54 @@ def create_customer(
         return subscription
 
     customer_id = None
+    user_email = (current_user.email or "").strip().lower()
 
-    # Step 1: Proactively check if customer already exists in Razorpay for this email
+    # Step 1: Create new customer in Razorpay for this specific user
     try:
-        existing = rzp_client.customer.all({"email": current_user.email})
-        items = existing.get("items", []) if isinstance(existing, dict) else []
-        if items and items[0].get("id"):
-            customer_id = items[0]["id"]
-            # Sync customer notes with latest tenant_id
-            try:
-                rzp_client.customer.edit(customer_id, {"notes": {"tenant_id": str(current_user.id)}})
-            except Exception:
-                pass
-    except Exception:
-        # Non-blocking search fallback
-        pass
-
-    # Step 2: If not found, create new customer in Razorpay
-    if not customer_id:
-        try:
-            customer_data = {
-                "email": current_user.email,
-                "notes": {
-                    "tenant_id": str(current_user.id)
-                }
+        customer_data = {
+            "email": current_user.email,
+            "name": current_user.email.split("@")[0],
+            "notes": {
+                "tenant_id": str(current_user.id)
             }
-            customer = rzp_client.customer.create(data=customer_data)
-            customer_id = customer.get("id")
-        except Exception as e:
-            err_msg = str(e).lower()
-            # Step 3: Catch any duplicate or already-exists error and re-query
-            if "already exists" in err_msg or "duplicate" in err_msg or "bad_request_error" in err_msg:
-                try:
-                    existing = rzp_client.customer.all({"email": current_user.email})
-                    items = existing.get("items", []) if isinstance(existing, dict) else []
-                    if items and items[0].get("id"):
-                        customer_id = items[0]["id"]
-                    else:
-                        raise HTTPException(status_code=400, detail=str(e))
-                except HTTPException:
-                    raise
-                except Exception as inner_e:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Customer exists in Razorpay but failed to link: {str(inner_e)}"
-                    )
-            else:
-                raise HTTPException(status_code=400, detail=str(e))
+        }
+        customer = rzp_client.customer.create(data=customer_data)
+        customer_id = customer.get("id")
+    except Exception as e:
+        err_msg = str(e).lower()
+        # Step 2: If customer already exists in Razorpay for this merchant, search by exact email
+        if "already exists" in err_msg or "duplicate" in err_msg or "bad_request_error" in err_msg:
+            try:
+                skip = 0
+                while True:
+                    batch = rzp_client.customer.all({"count": 100, "skip": skip})
+                    items = batch.get("items", []) if isinstance(batch, dict) else []
+                    if not items:
+                        break
+                    for item in items:
+                        item_email = (item.get("email") or "").strip().lower()
+                        if item_email == user_email:
+                            customer_id = item.get("id")
+                            break
+                    if customer_id or len(items) < 100:
+                        break
+                    skip += 100
+            except Exception as search_err:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Customer exists in Razorpay but lookup failed: {str(search_err)}"
+                )
+        else:
+            raise HTTPException(status_code=400, detail=f"Failed to create customer in Razorpay: {str(e)}")
 
     if not customer_id:
-        raise HTTPException(status_code=500, detail="Failed to initialize or resolve Razorpay customer")
+        raise HTTPException(status_code=500, detail="Failed to initialize or resolve Razorpay customer profile")
 
     subscription.razorpay_customer_id = customer_id
 
-    # Step 4: Check if this customer already has an active subscription in Razorpay
+    # Update notes on Razorpay customer record for attribution
     try:
-        all_subs = rzp_client.subscription.all({"count": 10})
-        for s in all_subs.get("items", []):
-            if s.get("customer_id") == customer_id and s.get("status") in ["active", "authenticated"]:
-                subscription.razorpay_subscription_id = s.get("id")
-                subscription.plan_id = s.get("plan_id", get_pro_plan_id())
-                subscription.status = s.get("status")
-                break
+        rzp_client.customer.edit(customer_id, {"notes": {"tenant_id": str(current_user.id)}})
     except Exception:
         pass
 
@@ -136,11 +128,14 @@ def create_subscription(
 
     target_plan_id = get_plus_plan_id() if plan_name == "plus" else get_pro_plan_id()
 
-    # If user already has an active subscription, return it directly
+    # If user already has an active subscription in DB and on Razorpay for this customer, return it directly
     if subscription.status == "active" and subscription.razorpay_subscription_id:
         try:
             rzp_sub = rzp_client.subscription.fetch(subscription.razorpay_subscription_id)
-            if rzp_sub.get("status") == "active":
+            if (
+                rzp_sub.get("status") in ["active", "authenticated"]
+                and rzp_sub.get("customer_id") == subscription.razorpay_customer_id
+            ):
                 subscription.plan_name = plan_name
                 db.commit()
                 return subscription
@@ -173,14 +168,28 @@ def verify_payment(
 ):
     """
     Direct client-side verification of Razorpay subscription checkout.
-    Verifies cryptographic signature, activates tenant Pro features instantly,
-    and returns updated subscription object without needing a hard re-login.
+    Verifies cryptographic signature, verifies customer ownership,
+    activates tenant Pro features, and returns updated subscription object.
     """
     rzp_client = get_rzp_client()
     key_secret = os.environ.get("RAZORPAY_KEY_SECRET", "")
 
-    # Cryptographic signature verification
+    subscription = db.query(models.Subscription).filter(models.Subscription.tenant_id == current_user.id).first()
+    if not subscription:
+        subscription = models.Subscription(
+            tenant_id=current_user.id,
+            status="free",
+            plan_name="free",
+            ai_credits_used=0,
+            statement_imports_used=0
+        )
+        db.add(subscription)
+        db.commit()
+        db.refresh(subscription)
+
+    # 1. Cryptographic signature verification
     if key_secret:
+        valid_sig = False
         try:
             expected_msg = f"{payload.razorpay_payment_id}|{payload.razorpay_subscription_id}"
             generated_signature = hmac.new(
@@ -189,24 +198,32 @@ def verify_payment(
                 hashlib.sha256
             ).hexdigest()
 
-            if not hmac.compare_digest(generated_signature, payload.razorpay_signature):
-                # Try utility method as fallback if direct HMAC mismatch occurs
-                if rzp_client:
-                    rzp_client.utility.verify_subscription_payment_signature({
-                        "razorpay_subscription_id": payload.razorpay_subscription_id,
-                        "razorpay_payment_id": payload.razorpay_payment_id,
-                        "razorpay_signature": payload.razorpay_signature
-                    })
+            if hmac.compare_digest(generated_signature, payload.razorpay_signature):
+                valid_sig = True
+            elif rzp_client:
+                rzp_client.utility.verify_subscription_payment_signature({
+                    "razorpay_subscription_id": payload.razorpay_subscription_id,
+                    "razorpay_payment_id": payload.razorpay_payment_id,
+                    "razorpay_signature": payload.razorpay_signature
+                })
+                valid_sig = True
         except Exception as sig_err:
-            print(f"[Razorpay Verify Warning] Signature mismatch or validation warning: {sig_err}")
-            # If in strict production mode with secret, enforce signature
-            if os.environ.get("ENVIRONMENT") == "production":
-                raise HTTPException(status_code=400, detail="Invalid Razorpay signature")
+            valid_sig = False
+            print(f"[Razorpay Verify Error] Signature verification failed: {sig_err}")
 
-    subscription = db.query(models.Subscription).filter(models.Subscription.tenant_id == current_user.id).first()
-    if not subscription:
-        subscription = models.Subscription(tenant_id=current_user.id)
-        db.add(subscription)
+        if not valid_sig:
+            raise HTTPException(status_code=400, detail="Invalid Razorpay signature")
+
+    # 2. Verify subscription with Razorpay API and confirm customer ownership
+    if rzp_client:
+        try:
+            rzp_sub = rzp_client.subscription.fetch(payload.razorpay_subscription_id)
+            if subscription.razorpay_customer_id and rzp_sub.get("customer_id") != subscription.razorpay_customer_id:
+                raise HTTPException(status_code=403, detail="Subscription does not match current user account")
+        except HTTPException:
+            raise
+        except Exception as api_err:
+            print(f"[Razorpay Fetch Warning] Could not fetch subscription from API: {api_err}")
 
     subscription.razorpay_subscription_id = payload.razorpay_subscription_id
     subscription.status = "active"
