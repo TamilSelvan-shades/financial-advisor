@@ -14,6 +14,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isRegistered = searchParams.get("registered") === "true";
+  const isSwitching = searchParams.get("switch") === "true";
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -48,6 +49,14 @@ function LoginForm() {
               className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
             >
               Registration successful. Sign in to continue.
+            </div>
+          )}
+          {isSwitching && !error && !isRegistered && (
+            <div
+              role="status"
+              className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+            >
+              Sign in to switch to a different account.
             </div>
           )}
           {error && (

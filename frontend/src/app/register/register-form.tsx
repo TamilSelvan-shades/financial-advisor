@@ -1,0 +1,174 @@
+"use client";
+
+import { register, logout } from "@/app/actions/auth";
+import { AuthShell } from "@/components/auth-shell";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Crown, Sparkles, Info } from "lucide-react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+
+export function RegisterForm({ hasExistingSession }: { hasExistingSession: boolean }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const planParam = searchParams.get("plan");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const formData = new FormData(e.currentTarget);
+    const result = await register(formData);
+
+    if (result.error) {
+      setError(result.error);
+      setLoading(false);
+    } else if (result.autoLoggedIn) {
+      router.push("/dashboard");
+      router.refresh();
+    } else {
+      router.push("/login?registered=true");
+    }
+  }
+
+  const isPro = planParam === "pro";
+  const isPlus = planParam === "plus";
+
+  return (
+    <AuthShell
+      eyebrow="Start your record"
+      title="Create your Ledgerly account"
+      description="Set up one private place for your complete financial picture."
+    >
+      <form onSubmit={handleSubmit}>
+        <div className="space-y-5">
+          {/* Active session warning notice if user is already signed in */}
+          {hasExistingSession && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-950">
+              <div className="flex items-center gap-2">
+                <Info size={16} className="text-amber-700 shrink-0" />
+                <span>You currently have an active session. Creating an account here will sign you into the new account.</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold shrink-0">
+                <Link href="/dashboard" className="text-amber-900 underline hover:text-black">
+                  Go to Dashboard
+                </Link>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await logout();
+                  }}
+                  className="text-amber-900 underline hover:text-black cursor-pointer"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Plan badge banner if user navigated from pricing */}
+          {isPro && (
+            <div className="flex items-center gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-900 font-medium">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#15332f] text-[#41e296]">
+                <Crown size={12} className="fill-[#41e296]" />
+              </span>
+              <div>
+                <span className="font-bold text-[#15332f]">Selected Tier: AI Advisor Pro</span>
+                <span className="block text-[11px] text-[#48615d]">
+                  Founding Member special (₹499/mo) ready to activate in your workspace.
+                </span>
+              </div>
+            </div>
+          )}
+
+          {isPlus && (
+            <div className="flex items-center gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-900 font-medium">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#15332f] text-[#41e296]">
+                <Sparkles size={12} />
+              </span>
+              <div>
+                <span className="font-bold text-[#15332f]">Selected Tier: Ledgerly Plus</span>
+                <span className="block text-[11px] text-[#48615d]">
+                  Includes 7-day free trial of unlimited Fast Capture & statement ingestion.
+                </span>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div
+              role="alert"
+              className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+              {error}
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor="full_name" className="text-sm font-semibold">
+              Full name
+            </Label>
+            <Input
+              id="full_name"
+              name="full_name"
+              autoComplete="name"
+              placeholder="Your name"
+              className="h-11 bg-white"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-sm font-semibold">
+              Email
+            </Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              className="h-11 bg-white"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password" className="text-sm font-semibold">
+              Password
+            </Label>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              className="h-11 bg-white"
+              required
+            />
+          </div>
+        </div>
+        <div className="mt-7 space-y-5">
+          <Button
+            type="submit"
+            className="h-11 w-full bg-[#15332f] font-bold text-white hover:bg-[#214943]"
+            disabled={loading}
+          >
+            {loading ? "Creating account..." : isPro ? "Create Account & Unlock Pro" : "Create free account"}
+          </Button>
+          <div className="text-center text-sm text-[#5d716d]">
+            Already have an account?{" "}
+            <Link
+              href="/login"
+              className="font-bold text-[#167d6b] hover:underline"
+            >
+              Sign in
+            </Link>
+          </div>
+        </div>
+      </form>
+    </AuthShell>
+  );
+}

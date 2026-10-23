@@ -8,11 +8,15 @@ import {
   TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import LandingPreviewAndPricing from "@/components/landing-preview-and-pricing";
 
 const cashFlowBars = [44, 62, 51, 74, 67, 88, 79, 96, 84, 108, 102, 124];
 
-export default function Home() {
+export default async function Home() {
+  const cookieStore = await cookies();
+  const isAuthenticated = Boolean(cookieStore.get("auth_token")?.value);
+
   return (
     <div className="min-h-screen bg-[#fbf9f4] text-[#15332f]">
       {/* Top Navigation */}
@@ -51,19 +55,39 @@ export default function Home() {
               Pricing
             </Link>
 
-            <Link
-              href="/login"
-              className="rounded-md px-3 py-1.5 text-xs sm:text-sm font-semibold text-emerald-50/75 transition-colors hover:bg-white/10 hover:text-white"
-            >
-              Sign in
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link
+                  href="/register"
+                  className="rounded-md px-3 py-1.5 text-xs sm:text-sm font-semibold text-emerald-50/75 transition-colors hover:bg-white/10 hover:text-white"
+                >
+                  Create account
+                </Link>
 
-            <Link
-              href="/register"
-              className="rounded-md bg-[#41e296] px-4 py-2 text-xs sm:text-sm font-bold text-[#122b22] shadow transition-colors hover:bg-emerald-300"
-            >
-              Create account
-            </Link>
+                <Link
+                  href="/dashboard"
+                  className="rounded-md bg-[#41e296] px-4 py-2 text-xs sm:text-sm font-bold text-[#122b22] shadow transition-colors hover:bg-emerald-300"
+                >
+                  Go to Dashboard
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="rounded-md px-3 py-1.5 text-xs sm:text-sm font-semibold text-emerald-50/75 transition-colors hover:bg-white/10 hover:text-white"
+                >
+                  Sign in
+                </Link>
+
+                <Link
+                  href="/register"
+                  className="rounded-md bg-[#41e296] px-4 py-2 text-xs sm:text-sm font-bold text-[#122b22] shadow transition-colors hover:bg-emerald-300"
+                >
+                  Create account
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       </header>
@@ -104,27 +128,55 @@ export default function Home() {
 
               {/* Hero Action CTAs */}
               <div className="mt-9 flex flex-col sm:flex-row gap-3">
-                <Link
-                  href="/register"
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-[#41e296] px-6 text-sm font-bold text-[#122b22] shadow transition-colors hover:bg-emerald-300"
-                >
-                  Open your workspace <ArrowRight size={16} />
-                </Link>
+                {isAuthenticated ? (
+                  <>
+                    <Link
+                      href="/dashboard"
+                      className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-[#41e296] px-6 text-sm font-bold text-[#122b22] shadow transition-colors hover:bg-emerald-300"
+                    >
+                      Go to your Dashboard <ArrowRight size={16} />
+                    </Link>
 
-                <Link
-                  href="/demo"
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-[#41e296]/60 bg-[#41e296]/15 px-6 text-sm font-bold text-[#41e296] shadow-sm transition-all hover:bg-[#41e296] hover:text-[#122b22]"
-                >
-                  <Sparkles size={16} />
-                  Explore Live Demo
-                </Link>
+                    <Link
+                      href="/register"
+                      className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-white/20 bg-white/5 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                    >
+                      Create another account
+                    </Link>
 
-                <Link
-                  href="/login"
-                  className="inline-flex h-12 items-center justify-center rounded-md border border-white/15 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10"
-                >
-                  Return to dashboard
-                </Link>
+                    <Link
+                      href="/demo"
+                      className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-[#41e296]/60 bg-[#41e296]/15 px-6 text-sm font-bold text-[#41e296] shadow-sm transition-all hover:bg-[#41e296] hover:text-[#122b22]"
+                    >
+                      <Sparkles size={16} />
+                      Explore Live Demo
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href="/register"
+                      className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-[#41e296] px-6 text-sm font-bold text-[#122b22] shadow transition-colors hover:bg-emerald-300"
+                    >
+                      Open your workspace <ArrowRight size={16} />
+                    </Link>
+
+                    <Link
+                      href="/demo"
+                      className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-[#41e296]/60 bg-[#41e296]/15 px-6 text-sm font-bold text-[#41e296] shadow-sm transition-all hover:bg-[#41e296] hover:text-[#122b22]"
+                    >
+                      <Sparkles size={16} />
+                      Explore Live Demo
+                    </Link>
+
+                    <Link
+                      href="/login"
+                      className="inline-flex h-12 items-center justify-center rounded-md border border-white/15 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                    >
+                      Sign in
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
 
@@ -234,12 +286,25 @@ export default function Home() {
             <Link href="#pricing" className="hover:text-[#15332f] transition-colors">
               Pricing
             </Link>
-            <Link href="/register" className="hover:text-[#15332f] transition-colors">
-              Create Account
-            </Link>
-            <Link href="/login" className="hover:text-[#15332f] transition-colors">
-              Sign In
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link href="/dashboard" className="font-bold text-[#167d6b] hover:text-[#15332f] transition-colors">
+                  Dashboard
+                </Link>
+                <Link href="/register" className="hover:text-[#15332f] transition-colors">
+                  Create Account
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/register" className="hover:text-[#15332f] transition-colors">
+                  Create Account
+                </Link>
+                <Link href="/login" className="hover:text-[#15332f] transition-colors">
+                  Sign In
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </footer>
