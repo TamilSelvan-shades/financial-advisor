@@ -1049,16 +1049,7 @@ async def lifespan(app: FastAPI):
                     print(f"[Lifespan Sanitizer] 🛡️ Cleared leaked telegram_chat_id {cid} from duplicate user {dupe.email}")
                     dupe.telegram_chat_id = None
                 db_boot.commit()
-
-        # 2. Clear env_chat_id from any non-primary users if erroneously attached
-        if env_chat_id and len(all_users) > 1:
-            for secondary in all_users[1:]:
-                if secondary.telegram_chat_id == env_chat_id:
-                    print(f"[Lifespan Sanitizer] 🛡️ Cleared leaked env TELEGRAM_CHAT_ID from secondary user {secondary.email}")
-                    secondary.telegram_chat_id = None
-                    db_boot.commit()
-
-        # 3. Permanently enforce database-level unique index on telegram_chat_id and whatsapp_phone_number
+        # Step 2: Enforce database-level unique index on telegram_chat_id and whatsapp_phone_number
         with engine.begin() as conn:
             dialect_name = engine.dialect.name
             if dialect_name == "postgresql":

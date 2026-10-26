@@ -935,7 +935,10 @@ def listen_loop():
 
 
 if __name__ == "__main__":
-    if TELEGRAM_BOT_TOKEN:
+    webhook_url = os.getenv("TELEGRAM_WEBHOOK_URL")
+    if webhook_url:
+        print(f"[Telegram Listener] TELEGRAM_WEBHOOK_URL configured ({webhook_url}). Preserving cloud webhook...")
+    elif TELEGRAM_BOT_TOKEN:
         print("Clearing any existing webhook to enable long-polling...")
         try:
             requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/deleteWebhook", timeout=10)
