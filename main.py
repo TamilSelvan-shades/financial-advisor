@@ -2940,24 +2940,378 @@ def chat_with_agent(req: schemas.ChatRequest, db: Session = Depends(get_db), cur
     if not ai_client:
         return {"reply": "Error: Gemini API key not configured on backend."}
 
+    def resolve_month_prefix(month_str: str) -> str:
+        s = (month_str or "").strip().lower()
+        today = datetime.date.today()
+        if not s or any(w in s for w in ["current", "this month", "now"]):
+            return today.strftime("%Y-%m")
+        if any(w in s for w in ["last month", "prev", "previous"]):
+            first = today.replace(day=1)
+            prev = first - datetime.timedelta(days=1)
+            return prev.strftime("%Y-%m")
+        if any(w in s for w in ["next month", "upcoming"]):
+            next_m = (today.replace(day=28) + datetime.timedelta(days=4)).strftime("%Y-%m")
+            return next_m
+
+        m_match = re.search(r"(20\d{2})[-/](\d{1,2})\b", s)
+        if m_match:
+            return f"{m_match.group(1)}-{int(m_match.group(2)):02d}"
+
+        months_map = {
+            "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+            "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+            "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+            "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12
+        }
+        for name, num in months_map.items():
+            if re.search(r"\b" + name + r"\b", s):
+                y_match = re.search(r"\b(20\d{2})\b", s)
+                year = int(y_match.group(1)) if y_match else today.year
+                return f"{year}-{num:02d}"
+
+        d_match = re.search(r"\b(0?[1-9]|1[0-2])\b", s)
+        if d_match:
+            return f"{today.year}-{int(d_match.group(1)):02d}"
+
+        return today.strftime("%Y-%m")
+
+    def get_income_and_expenses_tool(month: str = "") -> str:
+        """
+        Fetches and analyzes income, expenses, net cash flow, and category breakdown for a specific month (e.g. '2026-10', 'October', 'last month', or 'all').
+        Returns detailed summary including total income, total expenses, savings rate, and category-level breakdown.
+        """
+        db_session = SessionLocal()
+        try:
+            prefix = resolve_month_prefix(month)
+            try:
+                month_label = datetime.datetime.strptime(prefix, "%Y-%m").strftime("%B %Y")
+            except Exception:
+                month_label = prefix
+
+            exp_query = db_session.query(models.Expense).filter(models.Expense.tenant_id == current_user.id)
+            inc_query = db_session.query(models.Income).filter(models.Income.tenant_id == current_user.id)
+
+            month_expenses = exp_query.filter(models.Expense.date.like(f"{prefix}%")).all()
+            month_incomes = inc_query.filter(models.Income.date.like(f"{prefix}%")).all()
+
+            total_income = sum(float(i.amount or 0.0) for i in month_incomes)
+            total_expense = sum(float(e.amount or 0.0) for e in month_expenses)
+            net_cashflow = total_income - total_expense
+            savings_rate = (net_cashflow / total_income * 100.0) if total_income > 0 else 0.0
+
+            cat_totals = {}
+            for e in month_expenses:
+                c = (e.category or "Uncategorized").strip().title()
+                cat_totals[c] = cat_totals.get(c, 0.0) + float(e.amount or 0.0)
+
+            budgets = db_session.query(models.Budget).filter(models.Budget.tenant_id == current_user.id).all()
+            budget_map = {b.category.strip().title(): b.monthly_limit for b in budgets if b.category}
+
+            lines = [
+                f"📊 Cash Flow & Income/Expense Analysis for {month_label} ({prefix}):",
+                f"• Total Income: ₹{total_income:,.2f} ({len(month_incomes)} transactions)",
+            ]
+            for i in month_incomes:
+                lines.append(f"   - {i.date}: {i.category or 'Income'} - ₹{float(i.amount):,.2f} ({i.description or 'Deposit'} via {i.account or 'Bank'})")
+
+            lines.append(f"• Total Expenses: ₹{total_expense:,.2f} ({len(month_expenses)} transactions)")
+            lines.append(f"• Net Cashflow Surplus: ₹{net_cashflow:,.2f}")
+            lines.append(f"• Savings Rate: {savings_rate:.1f}%")
+
+            if cat_totals:
+                lines.append(f"\n📂 Category Breakdown for {month_label}:")
+                for cat, amt in sorted(cat_totals.items(), key=lambda x: x[1], reverse=True):
+                    pct = (amt / total_expense * 100.0) if total_expense > 0 else 0.0
+                    b_limit = budget_map.get(cat)
+                    b_str = f" [Budget: ₹{b_limit:,.2f}]" if b_limit else ""
+                    lines.append(f"• {cat}: ₹{amt:,.2f} ({pct:.1f}% of expenses){b_str}")
+
+                lines.append(f"\n📝 Itemized Expense Transactions in {month_label}:")
+                for e in sorted(month_expenses, key=lambda x: str(x.date), reverse=True):
+                    lines.append(f"   - {e.date}: {e.description or 'Expense'} - ₹{float(e.amount):,.2f} [{e.category}]")
+            else:
+                lines.append(f"• No individual expenses recorded specifically for {month_label}.")
+
+            all_exp_dates = db_session.query(models.Expense.date).filter(models.Expense.tenant_id == current_user.id).all()
+            if all_exp_dates:
+                available_months = sorted(list(set(str(d[0])[:7] for d in all_exp_dates if d[0])))
+                lines.append(f"\nℹ️ Historical months with recorded transactions: {', '.join(available_months)}")
+
+            return "\n".join(lines)
+        finally:
+            db_session.close()
+
+    def get_category_spending_and_savings_suggestions_tool(target_month: str = "next", reference_month: str = "current") -> str:
+        """
+        Analyzes spending categories and provides actionable savings suggestions, budget caps, and discretionary leaks for an upcoming or target month (e.g. November).
+        Distinguishes between Essential and Discretionary expenses and computes concrete potential rupee savings.
+        """
+        db_session = SessionLocal()
+        try:
+            ref_prefix = resolve_month_prefix(reference_month)
+            target_prefix = resolve_month_prefix(target_month)
+
+            try:
+                ref_label = datetime.datetime.strptime(ref_prefix, "%Y-%m").strftime("%B %Y")
+                target_label = datetime.datetime.strptime(target_prefix, "%Y-%m").strftime("%B %Y")
+            except Exception:
+                ref_label, target_label = ref_prefix, target_prefix
+
+            ref_expenses = db_session.query(models.Expense).filter(
+                models.Expense.tenant_id == current_user.id,
+                models.Expense.date.like(f"{ref_prefix}%")
+            ).all()
+
+            all_expenses = db_session.query(models.Expense).filter(
+                models.Expense.tenant_id == current_user.id
+            ).order_by(models.Expense.date.desc()).all()
+
+            discretionary_keywords = ["dining", "food", "restaurant", "cafe", "shopping", "entertainment", "subscription", "subscriptions", "leisure", "travel", "movie", "swiggy", "zomato", "takeout"]
+            
+            cat_totals = {}
+            for e in ref_expenses:
+                c = (e.category or "Uncategorized").strip().title()
+                cat_totals[c] = cat_totals.get(c, 0.0) + float(e.amount or 0.0)
+
+            total_ref_spend = sum(cat_totals.values())
+
+            subs = [e for e in all_expenses if "subscri" in (e.category or "").lower() or any(k in (e.description or "").lower() for k in ["netflix", "prime", "cult", "gym", "hotstar", "spotify"])]
+            unique_subs = {}
+            for s in subs:
+                key = (s.description or "Subscription").strip().title()
+                if key not in unique_subs or str(s.date) > str(unique_subs[key].date):
+                    unique_subs[key] = s
+
+            lines = [
+                f"💡 Category Spending Analysis & Actionable Savings Recommendations for {target_label} (based on {ref_label} & historical data):",
+                f"• Reference Period ({ref_label}) Total Spend: ₹{total_ref_spend:,.2f}",
+            ]
+
+            saving_recommendations = []
+            for cat, amt in cat_totals.items():
+                is_disc = any(k in cat.lower() for k in discretionary_keywords)
+                if is_disc:
+                    pot_save = amt * 0.25
+                    saving_recommendations.append({
+                        "category": cat,
+                        "current_spend": amt,
+                        "type": "Discretionary",
+                        "recommended_limit": round(amt - pot_save, 2),
+                        "potential_savings": round(pot_save, 2),
+                        "rationale": f"Moderate frequency; establish a disciplined cap of ₹{amt - pot_save:,.0f} for {target_label} to save ₹{pot_save:,.0f}."
+                    })
+
+            sub_total = sum(float(s.amount or 0.0) for s in unique_subs.values())
+            if unique_subs:
+                lines.append(f"\n📺 Recurring Subscriptions Radar (Active / Detected):")
+                for name, s in unique_subs.items():
+                    lines.append(f"• {name}: ₹{float(s.amount):,.2f}/mo (Last billed: {s.date})")
+                lines.append(f"Total Subscriptions Burn: ₹{sub_total:,.2f}/month.")
+                if sub_total > 1500:
+                    saving_recommendations.append({
+                        "category": "Subscriptions",
+                        "current_spend": sub_total,
+                        "type": "Recurring / Subscriptions",
+                        "recommended_limit": round(sub_total * 0.7, 2),
+                        "potential_savings": round(sub_total * 0.3, 2),
+                        "rationale": "Audit streaming and gym memberships to eliminate unused subscriptions or downgrade tiers."
+                    })
+
+            loans = db_session.query(models.Loan).filter(models.Loan.tenant_id == current_user.id).all()
+            total_debt = sum(float(l.principal or 0.0) for l in loans)
+            highest_rate_loan = max(loans, key=lambda l: float(l.interest_rate or 0.0)) if loans else None
+
+            lines.append(f"\n🎯 Recommended Saving Opportunities for {target_label}:")
+            if saving_recommendations:
+                total_pot_savings = sum(r["potential_savings"] for r in saving_recommendations)
+                for idx, r in enumerate(saving_recommendations, 1):
+                    lines.append(f"{idx}. 🏷️ *{r['category']}* ({r['type']}):")
+                    lines.append(f"   • Current Spend: ₹{r['current_spend']:,.2f}")
+                    lines.append(f"   • Recommended Budget Cap: ₹{r['recommended_limit']:,.2f}")
+                    lines.append(f"   • Potential Monthly Savings: ₹{r['potential_savings']:,.2f}")
+                    lines.append(f"   • Actionable Tip: {r['rationale']}")
+                lines.append(f"\n💰 Total Potential Savings in {target_label}: ₹{total_pot_savings:,.2f}")
+            else:
+                lines.append(f"1. 🏷️ *Food & Dining* (Discretionary): Set a strict monthly cap of ₹3,000 - ₹5,000 for {target_label}.")
+                lines.append(f"2. 🏷️ *Subscriptions & Recurring*: Review streaming and fitness memberships.")
+
+            if highest_rate_loan:
+                lines.append(f"\n🏦 Strategic Debt Acceleration (Where to put your savings):")
+                lines.append(f"• Total Outstanding Debt: ₹{total_debt:,.2f} across {len(loans)} loans.")
+                lines.append(f"• Highest Priority Loan: *{highest_rate_loan.name}* at {highest_rate_loan.interest_rate}% APR (Principal: ₹{highest_rate_loan.principal:,.2f}).")
+                lines.append(f"  Channeling your {target_label} savings into extra prepayments on this loan produces a guaranteed, risk-free {highest_rate_loan.interest_rate}% return by slashing compounding interest!")
+
+            return "\n".join(lines)
+        finally:
+            db_session.close()
+
+    def get_recent_transactions_tool(limit: int = 20, category: str = "", tx_type: str = "all") -> str:
+        """
+        Fetches the user's latest recorded income and expense transactions.
+        Can filter by category or transaction type ('income', 'expense', or 'all').
+        """
+        db_session = SessionLocal()
+        try:
+            records = []
+            if tx_type.lower() in ["all", "expense", "expenses"]:
+                q = db_session.query(models.Expense).filter(models.Expense.tenant_id == current_user.id)
+                if category:
+                    q = q.filter(models.Expense.category.ilike(f"%{category}%"))
+                for e in q.order_by(models.Expense.date.desc()).limit(limit).all():
+                    records.append({
+                        "date": e.date,
+                        "type": "EXPENSE",
+                        "category": e.category or "General",
+                        "description": e.description or "Expense",
+                        "amount": float(e.amount or 0.0),
+                        "account": e.account or "Account"
+                    })
+
+            if tx_type.lower() in ["all", "income", "incomes"]:
+                q = db_session.query(models.Income).filter(models.Income.tenant_id == current_user.id)
+                if category:
+                    q = q.filter(models.Income.category.ilike(f"%{category}%"))
+                for i in q.order_by(models.Income.date.desc()).limit(limit).all():
+                    records.append({
+                        "date": i.date,
+                        "type": "INCOME",
+                        "category": i.category or "Income",
+                        "description": i.description or "Deposit",
+                        "amount": float(i.amount or 0.0),
+                        "account": i.account or "Account"
+                    })
+
+            records.sort(key=lambda x: str(x["date"]), reverse=True)
+            top_records = records[:limit]
+            if not top_records:
+                return "No matching transactions found."
+
+            lines = [f"📋 Latest {len(top_records)} Transactions:"]
+            for r in top_records:
+                prefix_sign = "+" if r["type"] == "INCOME" else "-"
+                lines.append(f"• {r['date']} | {r['type']} | [{r['category']}] {r['description']}: {prefix_sign}₹{r['amount']:,.2f} ({r['account']})")
+            return "\n".join(lines)
+        finally:
+            db_session.close()
+
+    def get_loans_and_debt_strategy_tool() -> str:
+        """
+        Fetches all user's loans, interest rates, principal balances, and computes Debt Avalanche & Snowball payoff optimization.
+        """
+        db_session = SessionLocal()
+        try:
+            loans = db_session.query(models.Loan).filter(models.Loan.tenant_id == current_user.id).all()
+            if not loans:
+                return "No active loans found. You are debt-free!"
+
+            total_debt = sum(float(l.principal or 0.0) for l in loans)
+            lines = [f"🏦 Active Debt Portfolio ({len(loans)} loans, Total Balance: ₹{total_debt:,.2f}):"]
+            for l in sorted(loans, key=lambda x: float(x.interest_rate or 0.0), reverse=True):
+                lines.append(f"• {l.name}: Principal ₹{float(l.principal or 0.0):,.2f} @ {l.interest_rate}% APR (EMI: ₹{float(l.emi or 0.0):,.2f})")
+
+            loans_dict = [
+                {"id": l.id, "name": l.name, "principal": l.principal, "interest_rate": l.interest_rate, "tenure_months": l.tenure_months or 60}
+                for l in loans
+            ]
+            sim = loan_math.simulate_debt_payoff_matrix(loans_dict, extra_monthly=10000.0)
+            lines.append(f"\n⚡ Accelerated Payoff Optimization (+₹10,000/mo extra payment):")
+            lines.append(f"• Avalanche (targets highest interest): Clears all debt in {sim['avalanche']['total_months']} months (saves ₹{sim['avalanche']['total_saved']:,.0f} in interest).")
+            lines.append(f"• Snowball (clears smallest balance): Clears all debt in {sim['snowball']['total_months']} months (saves ₹{sim['snowball']['total_saved']:,.0f} in interest).")
+            lines.append(f"• Recommendation: {sim['recommendation']}")
+            return "\n".join(lines)
+        finally:
+            db_session.close()
+
+    def get_budgets_and_goals_tool() -> str:
+        """
+        Fetches configured category budgets, spending vs limit, and status of financial goals.
+        """
+        db_session = SessionLocal()
+        try:
+            current_prefix = datetime.date.today().strftime("%Y-%m")
+            budgets = db_session.query(models.Budget).filter(models.Budget.tenant_id == current_user.id).all()
+            goals = db_session.query(models.Goal).filter(models.Goal.tenant_id == current_user.id).all()
+
+            lines = ["🎯 Budgets & Financial Goals:"]
+            if budgets:
+                lines.append("Budgets:")
+                for b in budgets:
+                    spent = db_session.query(func.sum(models.Expense.amount)).filter(
+                        models.Expense.tenant_id == current_user.id,
+                        models.Expense.date.like(f"{current_prefix}%"),
+                        func.lower(models.Expense.category) == b.category.lower()
+                    ).scalar() or 0.0
+                    pct = (spent / b.monthly_limit * 100.0) if b.monthly_limit > 0 else 0.0
+                    lines.append(f"• {b.category}: Spent ₹{spent:,.2f} of ₹{b.monthly_limit:,.2f} limit ({pct:.1f}%)")
+            else:
+                lines.append("• No category budgets set yet.")
+
+            if goals:
+                lines.append("\nFinancial Goals:")
+                for g in goals:
+                    pct = (g.current_amount / g.target_amount * 100.0) if g.target_amount > 0 else 0.0
+                    lines.append(f"• {g.name}: Saved ₹{g.current_amount:,.2f} of ₹{g.target_amount:,.2f} ({pct:.1f}%) Target Date: {g.target_date or 'Ongoing'}")
+            else:
+                lines.append("• No financial goals created yet.")
+
+            return "\n".join(lines)
+        finally:
+            db_session.close()
+
+    def get_financial_overview_tool() -> str:
+        """
+        Returns a complete high-level overview of the user's finances: Net Worth, Liquid Bank Balances, Current Month Cash Flow, Total Debt, and Safe-to-Spend.
+        """
+        db_session = SessionLocal()
+        try:
+            total_assets = (
+                db_session.query(func.sum(models.Investment.current_value)).filter(models.Investment.tenant_id == current_user.id).scalar() or 0.0
+            )
+            total_debt = db_session.query(func.sum(models.Loan.principal)).filter(models.Loan.tenant_id == current_user.id).scalar() or 0.0
+            
+            accounts = db_session.query(models.Account).filter(models.Account.tenant_id == current_user.id).all()
+            acc_summary = ", ".join([f"{a.name}: ₹{float(a.initial_balance or 0.0):,.2f}" for a in accounts]) or "None registered"
+
+            curr_prefix = datetime.date.today().strftime("%Y-%m")
+            m_inc = db_session.query(func.sum(models.Income.amount)).filter(models.Income.tenant_id == current_user.id, models.Income.date.like(f"{curr_prefix}%")).scalar() or 0.0
+            m_exp = db_session.query(func.sum(models.Expense.amount)).filter(models.Expense.tenant_id == current_user.id, models.Expense.date.like(f"{curr_prefix}%")).scalar() or 0.0
+
+            status_data = reminder_service.get_tenant_reminders_and_status(db_session, str(current_user.id))
+            kpis = status_data.get("kpis", {})
+            safe_spend = float(kpis.get("safe_to_spend_daily", 0.0))
+
+            return (
+                f"🌟 Holistic Financial Position:\n"
+                f"• Net Worth: ₹{total_assets - total_debt:,.2f} (Assets: ₹{total_assets:,.2f}, Debt: ₹{total_debt:,.2f})\n"
+                f"• Liquid Bank Accounts: {acc_summary}\n"
+                f"• Current Month ({curr_prefix}): Inflow ₹{m_inc:,.2f}, Outflow ₹{m_exp:,.2f}, Net: ₹{m_inc - m_exp:,.2f}\n"
+                f"• Daily Safe-to-Spend Allowance: ₹{safe_spend:,.2f}/day\n"
+            )
+        finally:
+            db_session.close()
+
     def get_net_worth_tool() -> str:
         db_session = SessionLocal()
-        total_assets = (
-            db_session.query(func.sum(models.Investment.current_value)).filter(models.Investment.tenant_id == current_user.id).scalar() or 0.0
-        )
-        total_debt = db_session.query(func.sum(models.Loan.principal)).filter(models.Loan.tenant_id == current_user.id).scalar() or 0.0
-        db_session.close()
-        return f"Assets: ₹{total_assets:,.2f}, Debt: ₹{total_debt:,.2f}, Net Worth: ₹{total_assets - total_debt:,.2f}"
+        try:
+            total_assets = (
+                db_session.query(func.sum(models.Investment.current_value)).filter(models.Investment.tenant_id == current_user.id).scalar() or 0.0
+            )
+            total_debt = db_session.query(func.sum(models.Loan.principal)).filter(models.Loan.tenant_id == current_user.id).scalar() or 0.0
+            return f"Assets: ₹{total_assets:,.2f}, Debt: ₹{total_debt:,.2f}, Net Worth: ₹{total_assets - total_debt:,.2f}"
+        finally:
+            db_session.close()
 
     def get_upcoming_bills_tool() -> str:
         db_session = SessionLocal()
-        bills = db_session.query(models.Bill).filter(models.Bill.tenant_id == current_user.id).all()
-        db_session.close()
-        if not bills:
-            return "No bills found."
-        return "\n".join(
-            [f"{b.name}: ₹{b.amount:,.2f} due on day {b.due_day}" for b in bills]
-        )
+        try:
+            bills = db_session.query(models.Bill).filter(models.Bill.tenant_id == current_user.id).all()
+            if not bills:
+                return "No upcoming bills found."
+            return "\n".join(
+                [f"{b.name}: ₹{b.amount:,.2f} due on day {b.due_day} (Status: {b.status or 'Pending'})" for b in bills]
+            )
+        finally:
+            db_session.close()
 
     def simulate_loan_scenario_tool(loan_amount: float = 1200000.0, tenure_months: int = 60, interest_rate: float = 8.5) -> str:
         res = simulation_engine.simulate_car_loan(
@@ -2974,30 +3328,34 @@ def chat_with_agent(req: schemas.ChatRequest, db: Session = Depends(get_db), cur
 
     def compare_debt_payoff_tool(extra_monthly: float = 5000.0) -> str:
         db_session = SessionLocal()
-        loans = db_session.query(models.Loan).filter(models.Loan.tenant_id == current_user.id).all()
-        db_session.close()
-        loans_dict = [
-            {"id": l.id, "name": l.name, "principal": l.principal, "interest_rate": l.interest_rate, "tenure_months": l.tenure_months or 60}
-            for l in loans
-        ]
-        res = loan_math.simulate_debt_payoff_matrix(loans_dict, extra_monthly=extra_monthly)
-        return f"Total Debt: ₹{res['total_debt']:,.2f}. Snowball: {res['snowball']['total_months']} mos (saves ₹{res['snowball']['total_saved']:,.0f}). Avalanche: {res['avalanche']['total_months']} mos (saves ₹{res['avalanche']['total_saved']:,.0f}). Recommendation: {res['recommendation']}"
+        try:
+            loans = db_session.query(models.Loan).filter(models.Loan.tenant_id == current_user.id).all()
+            loans_dict = [
+                {"id": l.id, "name": l.name, "principal": l.principal, "interest_rate": l.interest_rate, "tenure_months": l.tenure_months or 60}
+                for l in loans
+            ]
+            res = loan_math.simulate_debt_payoff_matrix(loans_dict, extra_monthly=extra_monthly)
+            return f"Total Debt: ₹{res['total_debt']:,.2f}. Snowball: {res['snowball']['total_months']} mos (saves ₹{res['snowball']['total_saved']:,.0f}). Avalanche: {res['avalanche']['total_months']} mos (saves ₹{res['avalanche']['total_saved']:,.0f}). Recommendation: {res['recommendation']}"
+        finally:
+            db_session.close()
 
     def check_anomalies_tool() -> str:
         db_session = SessionLocal()
-        expenses = [
-            {"id": e.id, "date": e.date, "amount": e.amount, "description": e.description, "category": e.category}
-            for e in db_session.query(models.Expense).filter(models.Expense.tenant_id == current_user.id).all()
-        ]
-        bills = [
-            {"id": b.id, "name": b.name, "amount": b.amount}
-            for b in db_session.query(models.Bill).filter(models.Bill.tenant_id == current_user.id).all()
-        ]
-        db_session.close()
-        anoms = anomaly_detector.detect_anomalies(expenses, bills)
-        if not anoms:
-            return "No suspicious anomalies, price creep, or zombie subscriptions detected."
-        return "\n".join([f"[{a['severity'].upper()}] {a['title']}: {a['description']}" for a in anoms[:4]])
+        try:
+            expenses = [
+                {"id": e.id, "date": e.date, "amount": e.amount, "description": e.description, "category": e.category}
+                for e in db_session.query(models.Expense).filter(models.Expense.tenant_id == current_user.id).all()
+            ]
+            bills = [
+                {"id": b.id, "name": b.name, "amount": b.amount}
+                for b in db_session.query(models.Bill).filter(models.Bill.tenant_id == current_user.id).all()
+            ]
+            anoms = anomaly_detector.detect_anomalies(expenses, bills)
+            if not anoms:
+                return "No suspicious anomalies, price creep, or zombie subscriptions detected."
+            return "\n".join([f"[{a['severity'].upper()}] {a['title']}: {a['description']}" for a in anoms[:4]])
+        finally:
+            db_session.close()
 
     def convert_currency_tool(amount: float = 100.0, from_currency: str = "USD", to_currency: str = "INR") -> str:
         res = forex_service.convert_currency(amount, from_currency, to_currency)
@@ -3035,22 +3393,24 @@ def chat_with_agent(req: schemas.ChatRequest, db: Session = Depends(get_db), cur
 
     def simulate_affordability_tool(expense_amount: float = 25000.0, expense_name: str = "Vacation") -> str:
         db_session = SessionLocal()
-        status_data = reminder_service.get_tenant_reminders_and_status(db_session, str(current_user.id))
-        db_session.close()
-        kpis = status_data.get("kpis", {})
-        res = simulation_engine.simulate_discretionary_affordability(
-            current_liquid_balance=float(kpis.get("liquid_balance", 50000.0)),
-            current_uncommitted=float(kpis.get("uncommitted_balance", 35000.0)),
-            days_left_in_cycle=int(status_data.get("days_left_in_cycle", 15)),
-            expense_amount=expense_amount,
-            expense_name=expense_name,
-        )
-        return (
-            f"Affordability Simulation for {expense_name} (₹{expense_amount:,.0f}): "
-            f"Verdict: {res['verdict']} (Score: {res['feasibility_score']}/100, Risk: {res['risk_level']}). "
-            f"Daily safe-to-spend shifts from ₹{res['current_safe_to_spend_daily']:,.0f}/day to ₹{res['new_safe_to_spend_daily']:,.0f}/day. "
-            f"Remaining cushion: ₹{res['post_expense_uncommitted']:,.0f}. {res['summary']}"
-        )
+        try:
+            status_data = reminder_service.get_tenant_reminders_and_status(db_session, str(current_user.id))
+            kpis = status_data.get("kpis", {})
+            res = simulation_engine.simulate_discretionary_affordability(
+                current_liquid_balance=float(kpis.get("liquid_balance", 50000.0)),
+                current_uncommitted=float(kpis.get("uncommitted_balance", 35000.0)),
+                days_left_in_cycle=int(status_data.get("days_left_in_cycle", 15)),
+                expense_amount=expense_amount,
+                expense_name=expense_name,
+            )
+            return (
+                f"Affordability Simulation for {expense_name} (₹{expense_amount:,.0f}): "
+                f"Verdict: {res['verdict']} (Score: {res['feasibility_score']}/100, Risk: {res['risk_level']}). "
+                f"Daily safe-to-spend shifts from ₹{res['current_safe_to_spend_daily']:,.0f}/day to ₹{res['new_safe_to_spend_daily']:,.0f}/day. "
+                f"Remaining cushion: ₹{res['post_expense_uncommitted']:,.0f}. {res['summary']}"
+            )
+        finally:
+            db_session.close()
 
     def simulate_emi_purchase_tool(
         item_cost: float = 80000.0,
@@ -3059,66 +3419,104 @@ def chat_with_agent(req: schemas.ChatRequest, db: Session = Depends(get_db), cur
         item_name: str = "Laptop"
     ) -> str:
         db_session = SessionLocal()
-        status_data = reminder_service.get_tenant_reminders_and_status(db_session, str(current_user.id))
-        total_income = db_session.query(func.sum(models.Income.amount)).filter(models.Income.tenant_id == current_user.id).scalar() or 120000.0
-        total_expense = db_session.query(func.sum(models.Expense.amount)).filter(models.Expense.tenant_id == current_user.id).scalar() or 50000.0
-        db_session.close()
-        kpis = status_data.get("kpis", {})
-        res = simulation_engine.simulate_emi_purchase(
-            current_liquid_balance=float(kpis.get("liquid_balance", 50000.0)),
-            current_monthly_income=float(total_income or 120000.0),
-            current_monthly_expense=float(total_expense or 50000.0),
-            days_left_in_cycle=int(status_data.get("days_left_in_cycle", 15)),
-            item_cost=item_cost,
-            tenure_months=tenure_months,
-            annual_interest_rate=annual_interest_rate,
-            item_name=item_name,
-        )
-        return (
-            f"EMI Purchase Simulation for {item_name} (₹{item_cost:,.0f} over {tenure_months} mos): "
-            f"Monthly EMI: ₹{res['monthly_emi']:,.0f}. Total Cost: ₹{res['total_cost']:,.0f} (Interest: ₹{res['total_interest']:,.0f}). "
-            f"Feasibility: {res['verdict']} ({res['feasibility_score']}/100, {res['risk_level']} Risk). "
-            f"Safe-to-spend impact: -₹{res['daily_safe_impact']:,.0f}/day. Summary: {res['summary']}"
-        )
+        try:
+            status_data = reminder_service.get_tenant_reminders_and_status(db_session, str(current_user.id))
+            total_income = db_session.query(func.sum(models.Income.amount)).filter(models.Income.tenant_id == current_user.id).scalar() or 120000.0
+            total_expense = db_session.query(func.sum(models.Expense.amount)).filter(models.Expense.tenant_id == current_user.id).scalar() or 50000.0
+            kpis = status_data.get("kpis", {})
+            res = simulation_engine.simulate_emi_purchase(
+                current_liquid_balance=float(kpis.get("liquid_balance", 50000.0)),
+                current_monthly_income=float(total_income or 120000.0),
+                current_monthly_expense=float(total_expense or 50000.0),
+                days_left_in_cycle=int(status_data.get("days_left_in_cycle", 15)),
+                item_cost=item_cost,
+                tenure_months=tenure_months,
+                annual_interest_rate=annual_interest_rate,
+                item_name=item_name,
+            )
+            return (
+                f"EMI Purchase Simulation for {item_name} (₹{item_cost:,.0f} over {tenure_months} mos): "
+                f"Monthly EMI: ₹{res['monthly_emi']:,.0f}. Total Cost: ₹{res['total_cost']:,.0f} (Interest: ₹{res['total_interest']:,.0f}). "
+                f"Feasibility: {res['verdict']} ({res['feasibility_score']}/100, {res['risk_level']} Risk). "
+                f"Safe-to-spend impact: -₹{res['daily_safe_impact']:,.0f}/day. Summary: {res['summary']}"
+            )
+        finally:
+            db_session.close()
 
     def simulate_loan_prepayment_tool(
         prepayment_amount: float = 50000.0,
         loan_name: str = "Loan"
     ) -> str:
         db_session = SessionLocal()
-        status_data = reminder_service.get_tenant_reminders_and_status(db_session, str(current_user.id))
-        loan = (
-            db_session.query(models.Loan)
-            .filter(models.Loan.tenant_id == current_user.id)
-            .first()
-        )
-        db_session.close()
-        p = float(loan.principal) if loan and loan.principal else 500000.0
-        r = float(loan.interest_rate) if loan and loan.interest_rate else 9.5
-        n = int(loan.tenure_months or ((loan.tenure_years or 5) * 12)) if loan else 48
-        name = loan.name if loan and loan.name else loan_name
+        try:
+            status_data = reminder_service.get_tenant_reminders_and_status(db_session, str(current_user.id))
+            loan = (
+                db_session.query(models.Loan)
+                .filter(models.Loan.tenant_id == current_user.id)
+                .first()
+            )
+            p = float(loan.principal) if loan and loan.principal else 500000.0
+            r = float(loan.interest_rate) if loan and loan.interest_rate else 9.5
+            n = int(loan.tenure_months or ((loan.tenure_years or 5) * 12)) if loan else 48
+            name = loan.name if loan and loan.name else loan_name
 
-        kpis = status_data.get("kpis", {})
-        res = simulation_engine.simulate_loan_prepayment(
-            principal=p,
-            annual_interest_rate=r,
-            tenure_months=n,
-            prepayment_amount=prepayment_amount,
-            loan_name=name,
-            current_liquid_balance=float(kpis.get("liquid_balance", 0.0)),
-        )
-        return (
-            f"Loan Prepayment Simulation on {name} (Prepay ₹{prepayment_amount:,.0f} against ₹{p:,.0f} principal): "
-            f"Interest Saved: ₹{res['interest_saved']:,.0f}. Timeline Knocked Off: {res['months_saved']} months earlier "
-            f"(closes in {res['revised_tenure_months']} mos instead of {n}). Feasibility: {res['feasibility_score']}/100. Summary: {res['summary']}"
-        )
+            kpis = status_data.get("kpis", {})
+            res = simulation_engine.simulate_loan_prepayment(
+                principal=p,
+                annual_interest_rate=r,
+                tenure_months=n,
+                prepayment_amount=prepayment_amount,
+                loan_name=name,
+                current_liquid_balance=float(kpis.get("liquid_balance", 0.0)),
+            )
+            return (
+                f"Loan Prepayment Simulation on {name} (Prepay ₹{prepayment_amount:,.0f} against ₹{p:,.0f} principal): "
+                f"Interest Saved: ₹{res['interest_saved']:,.0f}. Timeline Knocked Off: {res['months_saved']} months earlier "
+                f"(closes in {res['revised_tenure_months']} mos instead of {n}). Feasibility: {res['feasibility_score']}/100. Summary: {res['summary']}"
+            )
+        finally:
+            db_session.close()
 
     try:
+        today_obj = datetime.date.today()
+        today_str = today_obj.strftime("%Y-%m-%d")
+        month_str = today_obj.strftime("%B %Y")
+
+        system_instruction = (
+            f"You are Ledgerly's Chief AI Financial Advisor & Private Wealth Strategist. "
+            f"Today's date is {today_str} ({month_str}). "
+            f"You have direct real-time read access to the user's financial ledger: income, expenses, category spending, loans, investments, recurring bills, budgets, and goals.\n\n"
+            f"CORE ADVISORY PRINCIPLES:\n"
+            f"1. When the user asks to analyze income and expenses for any month (e.g. October, last month, or current), ALWAYS use your tools (`get_income_and_expenses_tool` and `get_category_spending_and_savings_suggestions_tool`) to inspect their real records. Present total income, total expenses, net savings surplus, and category breakdown with percentages.\n"
+            f"2. When asked for suggestions on which category they can save money (e.g. for November or next month), analyze their spending, distinguish between Discretionary (dining, takeout, shopping, entertainment, subscriptions) and Essential expenses, point out high-burn areas, and provide concrete rupee-denominated savings targets and realistic budget caps.\n"
+            f"3. When asked about loans, debt, or accelerated payoff, use `get_loans_and_debt_strategy_tool` to analyze their loan portfolio and recommend Debt Avalanche (highest APR first) or Snowball strategies.\n"
+            f"4. You are an autonomous financial guide. NEVER state that you can only provide net worth or bills. You have full analytical tools for all income, expenses, budgets, and savings advice.\n"
+            f"5. Format financial numbers clearly using the Indian Rupee symbol (₹) and comma separation (e.g., ₹2,00,000.00). Use Markdown formatting (bullet points, bold highlights) for high readability."
+        )
+
+        chat_history = []
+        if req.history:
+            for h in req.history:
+                role = "user" if h.role == "user" else "model"
+                if h.content:
+                    chat_history.append(
+                        types.Content(
+                            role=role,
+                            parts=[types.Part.from_text(text=h.content)]
+                        )
+                    )
+
         chat = ai_client.chats.create(
             model="gemini-2.5-flash",
             config=types.GenerateContentConfig(
-                system_instruction="You are an elite financial advisor. Use your tools to fetch data, simulate What-If scenarios (affordability, EMI purchase, loan prepayment), check debt strategies, convert currencies, calculate income tax, or detect anomalies ONLY if needed. Be concise and authoritative.",
+                system_instruction=system_instruction,
                 tools=[
+                    get_income_and_expenses_tool,
+                    get_category_spending_and_savings_suggestions_tool,
+                    get_recent_transactions_tool,
+                    get_loans_and_debt_strategy_tool,
+                    get_budgets_and_goals_tool,
+                    get_financial_overview_tool,
                     get_net_worth_tool,
                     get_upcoming_bills_tool,
                     simulate_affordability_tool,
@@ -3133,11 +3531,13 @@ def chat_with_agent(req: schemas.ChatRequest, db: Session = Depends(get_db), cur
                 ],
                 temperature=0.2,
             ),
+            history=chat_history if chat_history else None,
         )
         response = chat.send_message(req.message)
         return {"reply": response.text}
     except Exception as e:
         return {"reply": f"AI Error: {str(e)}"}
+
 
 @app.get("/ping", tags=["System"])
 def ping():

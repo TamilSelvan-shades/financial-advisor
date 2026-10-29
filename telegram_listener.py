@@ -128,7 +128,23 @@ def get_financial_context(tenant_id: str) -> str:
         or 0.0
     )
     db.close()
-    return f"- Net Worth: ₹{total_assets - total_debt:,.2f} (Assets: ₹{total_assets:,.2f}, Debt: ₹{total_debt:,.2f})"
+    current_prefix = datetime.date.today().strftime("%Y-%m")
+    m_inc = (
+        db.query(func.sum(models.Income.amount))
+        .filter(models.Income.tenant_id == tenant_id, models.Income.date.like(f"{current_prefix}%"))
+        .scalar()
+        or 0.0
+    )
+    m_exp = (
+        db.query(func.sum(models.Expense.amount))
+        .filter(models.Expense.tenant_id == tenant_id, models.Expense.date.like(f"{current_prefix}%"))
+        .scalar()
+        or 0.0
+    )
+    return (
+        f"- Net Worth: ₹{total_assets - total_debt:,.2f} (Assets: ₹{total_assets:,.2f}, Debt: ₹{total_debt:,.2f})\n"
+        f"- Current Month ({current_prefix}) Inflow: ₹{m_inc:,.2f}, Outflow: ₹{m_exp:,.2f}, Surplus: ₹{m_inc - m_exp:,.2f}"
+    )
 
 
 def handle_what_if_scenario(db, tenant_id: str, data: Dict[str, Any]) -> str:

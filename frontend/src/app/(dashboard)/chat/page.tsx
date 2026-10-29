@@ -23,10 +23,12 @@ type Message = {
 };
 
 const SUGGESTIONS = [
+  "Analyze my income and expenses for October",
+  "Where can I save more money in November?",
   "What is my current net worth and cash position?",
   "How much total loan debt do I have remaining?",
-  "What bills and subscriptions are due this month?",
   "Recommend an accelerated debt payoff strategy",
+  "What bills and subscriptions are due this month?",
 ];
 
 export default function ChatPage() {
@@ -82,9 +84,20 @@ export default function ChatPage() {
     setIsLoading(true);
 
     try {
+      const historyPayload = messages
+        .filter((m) => m.content && !m.content.startsWith("Hello! I am Ledgerly"))
+        .slice(-8)
+        .map((m) => ({
+          role: m.role === "assistant" ? "model" : "user",
+          content: m.content,
+        }));
+
       const res = await fetchWithAuthClient("/api/v1/chat/", {
         method: "POST",
-        body: JSON.stringify({ message: userMessage.trim() }),
+        body: JSON.stringify({
+          message: userMessage.trim(),
+          history: historyPayload,
+        }),
       });
 
       if (res.ok) {

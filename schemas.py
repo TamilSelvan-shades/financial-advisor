@@ -208,7 +208,13 @@ class ProfileUpdate(BaseModel):
 
 
 # --- AI Chat Schema ---
+class ChatMessageItem(BaseModel):
+    role: str
+    content: str
+
+
 class ChatRequest(BaseModel):
+    history: Optional[List[ChatMessageItem]] = None
     message: str
 
 
